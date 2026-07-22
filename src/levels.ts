@@ -311,7 +311,7 @@ function execute(level: Token[]): Token[] {
         };
         putresult(stack);
         return result;
-    } catch(e) {
+    } catch (e) {
         return [(e as Error).message as Token];
     }
 }
