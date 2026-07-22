@@ -174,9 +174,10 @@ export const levels: Level[] = [
     // lists (TODO we need some functions to make these useful
     level("[]", "[]"),
     level("[1#]", "[1#]"),
+    level("1# [2#]", "1# [2#]"),
     level("[2# 1#]", "[2# 1#]"),
-    level("[incr 3#]", "[incr 3#]"), // do we want this? could be a way to make functions? idk
-    level("[add 2# 1#]", "[add 2# 1#]"),
+    // level("[incr 3#]", "[incr 3#]"), // do we want this? could be a way to make functions? idk
+    // level("[add 2# 1#]", "[add 2# 1#]"),
 
     level("list_length []", "0#"),
     level("list_length [1#]", "1#"),
@@ -207,6 +208,15 @@ export const levels: Level[] = [
     level("#", "0#"),
     level("4", "ERR_no_stack"),
     level("1:2", "ERR_no_stack"),
+
+    /*
+    ideas for the future:
+    - some types. eg we can have a point with an x and a y field
+    - scoped variables
+    "set_var 0# 25#"
+    - whitespace based definitions that need to be parsed. eg fn\n\tabc <- abc is part of fn
+    "set_var 0# fn\n\tset_var 0# 25#"
+    */
 ];
 
 function execute(level: Token[]): Token[] {
