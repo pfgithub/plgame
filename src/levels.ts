@@ -292,7 +292,7 @@ function execute(level: Token[]): Token[] {
         for (const token of [...level].reverse()) {
             const xc = executors[token];
             if (!xc) throw new Error(`execution not implemented for token: ${token}`);
-            executors[token]();
+            xc();
         }
 
         // now, convert stack to outcome
