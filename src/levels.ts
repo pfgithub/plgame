@@ -162,10 +162,22 @@ export const levels: Level[] = [
 
     // negative
 
+    // the stack
+    level("01# 02# 03#", "01# 02# 03#"),
+    level("kill 01# 02# 03#", "02# 03#"),
+    level("kill kill 01# 02# 03#", "03#"),
+    level("kill kill kill 01# 02# 03#", ""),
+    level("index 0# 01# 02# 03#", "01# 01# 02# 03#"),
+    level("index 1# 01# 02# 03#", "02# 01# 02# 03#"),
+    level("index 2# 01# 02# 03#", "03# 01# 02# 03#"),
+
     // lists (TODO we need some functions to make these useful
     level("[]", "[]"),
     level("[1#]", "[1#]"),
     level("[2# 1#]", "[2# 1#]"),
+    level("[incr 3#]", "[incr 3#]"), // do we want this? could be a way to make functions? idk
+    level("[add 2# 1#]", "[add 2# 1#]"),
+
     level("list_length []", "0#"),
     level("list_length [1#]", "1#"),
     level("list_length [2# 1#]", "2#"),
@@ -256,6 +268,14 @@ function execute(level: Token[]): Token[] {
             const list = [...getlist()];
             list.push(arg);
             put(list);
+        },
+        "kill": () => get(),
+        "index": () => {
+            const index = getnum();
+            const idx = stack.length - index - 1;
+            const val = stack[idx];
+            if (val === undefined) throw new Error("ERR_index_out_of_range");
+            put(val);
         },
     };
     try {
