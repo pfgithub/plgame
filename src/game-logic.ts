@@ -10,22 +10,32 @@ export type GameState = {
     code: string,
     tokenNames: TokenNames,
     levelIndex: number,
+    highestLevelIndex: number,
+};
+
+export type LevelFailure = {
+    levelIndex: number,
+    expected: string[],
+    actual?: string[],
+    error?: Error,
 };
 
 export type ProgressionResult
-    = | {kind: "blocked", levelIndex: number}
-        | {kind: "failed", levelIndex: number, expected: string[], actual?: string[], error?: Error}
-        | {kind: "complete", levelIndex: number};
+    = | {kind: "blocked", levelIndex: number, pastFailures: LevelFailure[]}
+        | {kind: "past-failures", levelIndex: number, pastFailures: LevelFailure[]}
+        | {kind: "failed", levelIndex: number, failure: LevelFailure, pastFailures: LevelFailure[]}
+        | {kind: "complete", levelIndex: number, pastFailures: LevelFailure[]};
 
 type Runner = (code: string, input: string[]) => Promise<string[]>;
 
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 
 export function defaultState(): GameState {
     return {
         code: DEFAULT_CODE,
         tokenNames: {},
         levelIndex: 0,
+        highestLevelIndex: 0,
     };
 }
 
@@ -82,29 +92,58 @@ export async function runProgression(
     code: string,
     tokenNames: TokenNames,
     levels: Level[],
+    currentLevelIndex: number,
     runner: Runner,
 ): Promise<ProgressionResult> {
-    for (const [levelIndex, level] of levels.entries()) {
-        if (!isLevelNamed(level, tokenNames)) return {kind: "blocked", levelIndex};
-
+    const runLevel = async (levelIndex: number): Promise<LevelFailure | undefined> => {
+        const level = levels[levelIndex];
+        if (!level) throw new Error(`Missing level ${levelIndex + 1}.`);
         const input = tokensToNames(level.input, tokenNames);
         const expected = tokensToNames(level.output, tokenNames);
         try {
             const actual = await runner(code, input);
             if (!arraysEqual(actual, expected)) {
-                return {kind: "failed", levelIndex, expected, actual};
+                return {levelIndex, expected, actual};
             }
         } catch (error) {
             return {
-                kind: "failed",
                 levelIndex,
                 expected,
                 error: error instanceof Error ? error : new Error(String(error)),
             };
         }
+        return undefined;
+    };
+
+    const pastFailures: LevelFailure[] = [];
+    let currentFailure: LevelFailure | undefined;
+    for (let levelIndex = 0; levelIndex <= currentLevelIndex; levelIndex++) {
+        const level = levels[levelIndex];
+        if (!level || !isLevelNamed(level, tokenNames)) {
+            return {kind: "blocked", levelIndex, pastFailures};
+        }
+        const failure = await runLevel(levelIndex);
+        if (failure && levelIndex < currentLevelIndex) pastFailures.push(failure);
+        if (failure && levelIndex === currentLevelIndex) currentFailure = failure;
     }
 
-    return {kind: "complete", levelIndex: Math.max(0, levels.length - 1)};
+    if (currentFailure) {
+        return {kind: "failed", levelIndex: currentLevelIndex, failure: currentFailure, pastFailures};
+    }
+    if (pastFailures.length > 0) {
+        return {kind: "past-failures", levelIndex: currentLevelIndex, pastFailures};
+    }
+
+    for (let levelIndex = currentLevelIndex + 1; levelIndex < levels.length; levelIndex++) {
+        const level = levels[levelIndex];
+        if (!level || !isLevelNamed(level, tokenNames)) {
+            return {kind: "blocked", levelIndex, pastFailures};
+        }
+        const failure = await runLevel(levelIndex);
+        if (failure) return {kind: "failed", levelIndex, failure, pastFailures};
+    }
+
+    return {kind: "complete", levelIndex: Math.max(0, levels.length - 1), pastFailures};
 }
 
 export function serializeState(state: GameState): string {
@@ -120,7 +159,7 @@ export function parseState(serialized: string | null, levelCount: number): GameS
 
         const saved = value as Record<string, unknown>;
         if (
-            saved.version !== STORAGE_VERSION
+            (saved.version !== 1 && saved.version !== STORAGE_VERSION)
             || typeof saved.code !== "string"
             || !Number.isInteger(saved.levelIndex)
             || typeof saved.levelIndex !== "number"
@@ -138,10 +177,21 @@ export function parseState(serialized: string | null, levelCount: number): GameS
         const names = entries.map(([, name]) => name);
         if (new Set(names).size !== names.length) return defaultState();
 
+        const highestLevelIndex = saved.version === 1
+            ? saved.levelIndex
+            : saved.highestLevelIndex;
+        if (
+            typeof highestLevelIndex !== "number"
+            || !Number.isInteger(highestLevelIndex)
+            || highestLevelIndex < saved.levelIndex
+            || highestLevelIndex >= levelCount
+        ) return defaultState();
+
         return {
             code: saved.code,
             tokenNames: Object.fromEntries(entries) as TokenNames,
             levelIndex: saved.levelIndex,
+            highestLevelIndex,
         };
     } catch {
         return defaultState();

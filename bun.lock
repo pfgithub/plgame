@@ -5,6 +5,7 @@
     "": {
       "name": "plgame",
       "dependencies": {
+        "@codemirror/commands": "^6.10.4",
         "@codemirror/lang-javascript": "^6.2.5",
         "@eslint/js": "^10.0.1",
         "@stylistic/eslint-plugin": "^5.10.0",

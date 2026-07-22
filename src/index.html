@@ -39,6 +39,12 @@
             width: 8rem;
         }
 
+        #level-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+        }
+
         .cm-editor {
             height: 100%;
         }
@@ -50,13 +56,25 @@
             <div id="editor"></div>
         </section>
         <section aria-label="Current level">
-            <h1 id="level-number"></h1>
-            <h2>Input</h2>
-            <div id="level-input" class="tokens"></div>
-            <h2>Expected output</h2>
-            <div id="level-output" class="tokens"></div>
-            <p><button id="run" type="button">Run</button></p>
-            <p id="status" role="status" aria-live="polite"></p>
+            <nav aria-label="Level navigation">
+                <button id="previous-level" type="button">Back</button>
+                <button id="show-levels" type="button">All levels</button>
+                <button id="next-level" type="button">Forward</button>
+            </nav>
+            <div id="failed-levels"></div>
+            <div id="level-detail">
+                <h1 id="level-number"></h1>
+                <h2>Input</h2>
+                <div id="level-input" class="tokens"></div>
+                <h2>Expected output</h2>
+                <div id="level-output" class="tokens"></div>
+                <p><button id="run" type="button">Run</button></p>
+                <p id="status" role="status" aria-live="polite"></p>
+            </div>
+            <div id="level-picker" hidden>
+                <h1>Levels</h1>
+                <div id="level-grid"></div>
+            </div>
         </section>
     </main>
     <script type="module" src="./game.ts"></script>
