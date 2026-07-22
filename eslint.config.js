@@ -48,7 +48,7 @@ export default defineConfig([
             "@typescript-eslint/no-empty-object-type": ["off"], // eeh whatever. these are generally temporary and get filled in later.
         },
         extends: [tseslint.configs.base],
-        files: ["eslint.config.ts", "src/**/*.{,m,c}{j,t}s{,x}"],
+        files: ["eslint.config.js", "src/**/*.{,m,c}{j,t}s{,x}"],
         languageOptions: {
             parserOptions: {
                 projectService: true,
