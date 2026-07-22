@@ -37,6 +37,19 @@ function level(input: string, output: string): Level {
 // ok base 6. or even base 4? no 6
 export const levels: Level[] = [
     // copy input to output
+    level("true", "true"),
+    level("true true true true", "true true true true"),
+    // !
+    level("true true true ! true", "true true true false"),
+    level("! true", "false"),
+    level("true true ! true true", "true true false true"),
+    level("true ! true true true", "true false true true"),
+    level("! true true true true", "false true true true"),
+    // !!
+    level("!!true", "true"),
+    level("!true !!true", "false true"),
+
+    // copy input to output
     level("1#", "1#"),
     level("2#", "2#"),
     level("5#", "5#"),
@@ -236,6 +249,13 @@ function execute(level: Token[]): Token[] {
         }
         return last;
     };
+    const getbool = (): boolean => {
+        const last = get();
+        if (typeof last !== "boolean") {
+            throw new Error("ERR_not_boolean");
+        }
+        return last;
+    };
     const getlist = (): StackValue[] => {
         const last = get();
         if (!Array.isArray(last)) {
@@ -287,6 +307,9 @@ function execute(level: Token[]): Token[] {
             if (val === undefined) throw new Error("ERR_index_out_of_range");
             put(val);
         },
+        "!": () => put(!getbool()),
+        "true": () => put(true),
+        "false": () => put(false),
     };
     try {
         for (const token of [...level].reverse()) {
