@@ -2,8 +2,10 @@
   "name": "plgame",
   "module": "index.ts",
   "dependencies": {
+    "@codemirror/lang-javascript": "^6.2.5",
     "@eslint/js": "^10.0.1",
     "@stylistic/eslint-plugin": "^5.10.0",
+    "codemirror": "^6.0.2",
     "eslint": "^10.7.0",
     "typescript": "6",
     "typescript-eslint": "^8.65.0"

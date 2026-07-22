@@ -1,4 +1,4 @@
-type Token = string & {__is_token: true};
+export type Token = string & {__is_token: true};
 function tokenize(input: string): Token[] {
     const output: Token[] = [];
     let uncommitted: string = "";
@@ -21,7 +21,7 @@ function tokenize(input: string): Token[] {
     commit();
     return output;
 }
-type Level = {raw: string, input: Token[], output: Token[]};
+export type Level = {raw: string, input: Token[], output: Token[]};
 function level(input: string, output: string): Level {
     return {raw: input, input: tokenize(input), output: tokenize(output)};
 }
@@ -325,6 +325,8 @@ function execute(level: Token[]): Token[] {
                 if (typeof item === "number") {
                     for (const ent of [...item.toString(6)].reverse()) result.push(ent as Token);
                     result.push("#" as Token);
+                } else if (typeof item === "boolean") {
+                    result.push(String(item) as Token);
                 } else if (Array.isArray(item)) {
                     result.push("[" as Token);
                     putresult(item);

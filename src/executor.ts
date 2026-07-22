@@ -1,4 +1,4 @@
-function runCode(code: string, input: string[]): Promise<string[]> {
+export function runCode(code: string, input: string[]): Promise<string[]> {
     const EXECUTION_TIMEOUT_MS = 1_000;
     const SETUP_TIMEOUT_MS = 2_000;
 
