@@ -78,7 +78,7 @@
                 </button>
                 <button
                     id="level-number"
-                    class="!flex min-w-0 items-center justify-center gap-1 px-2 font-semibold data-[level-state=failed]:!border-red-500/50 data-[level-state=failed]:!bg-red-500/10 data-[level-state=failed]:!text-red-300 data-[level-state=passed]:!border-emerald-500/40 data-[level-state=passed]:!bg-emerald-500/10 data-[level-state=passed]:!text-emerald-300 [&_.lucide]:shrink-0"
+                    class="!flex min-w-0 items-center justify-center gap-1 px-2 font-semibold data-[level-state=failed]:[&>#level-number-label]:!text-red-300 data-[level-state=passed]:[&>#level-number-label]:!text-emerald-300 [&_.lucide]:shrink-0"
                     type="button"
                     aria-label="Browse unlocked levels"
                     aria-controls="level-navigation"
@@ -137,7 +137,15 @@
                     aria-selected="false"
                     tabindex="-1"
                     data-tab="results"
-                >Results</button>
+                >
+                    Failures
+                    <span
+                        id="failures-tab-count"
+                        class="ml-1 inline-flex min-w-4 items-center justify-center rounded-full bg-red-500/20 px-1 text-[0.625rem] font-semibold leading-4 text-red-300"
+                        aria-hidden="true"
+                        hidden
+                    ></span>
+                </button>
             </nav>
 
             <section
@@ -175,7 +183,14 @@
                         <span>via <code class="text-zinc-500">render()</code></span>
                     </span>
                 </div>
-                <pre class="min-h-8 whitespace-pre-wrap break-words rounded border border-zinc-800 bg-zinc-900/60 p-2 font-mono text-xs leading-relaxed text-zinc-300"><code id="level-output"></code></pre>
+                <pre class="mb-3 min-h-8 whitespace-pre-wrap break-words rounded border border-zinc-800 bg-zinc-900/60 p-2 font-mono text-xs leading-relaxed text-zinc-300"><code id="level-output"></code></pre>
+                <div
+                    id="challenge-result"
+                    class="text-xs leading-relaxed text-zinc-400 [&_.diff-line]:font-mono [&_.diff-line-actual]:text-red-400 [&_.diff-line-expected]:text-emerald-400 [&_del]:bg-emerald-400/15 [&_del]:text-emerald-300 [&_del]:no-underline [&_ins]:bg-red-400/15 [&_ins]:text-red-300 [&_ins]:no-underline [&_p]:my-2 [&_pre]:my-1 [&_pre]:min-h-8 [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_pre]:rounded [&_pre]:border [&_pre]:border-zinc-800 [&_pre]:bg-zinc-900/60 [&_pre]:p-2 [&_strong]:text-zinc-100"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                ></div>
             </section>
 
             <section
@@ -184,15 +199,23 @@
                 role="tabpanel"
                 aria-labelledby="results-tab"
             >
-                <h2 class="mb-2 text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-zinc-500">Results</h2>
+                <h2 class="mb-2 flex items-center gap-1.5 text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-zinc-500">
+                    Failures
+                    <span
+                        id="failures-panel-count"
+                        class="inline-flex min-w-4 items-center justify-center rounded-full bg-red-500/20 px-1 text-[0.625rem] font-semibold leading-4 tracking-normal text-red-300"
+                        aria-hidden="true"
+                        hidden
+                    ></span>
+                </h2>
                 <div
                     id="status"
-                    class="text-xs leading-relaxed text-zinc-400 [&_.diff-line]:font-mono [&_.diff-line-actual]:text-red-400 [&_.diff-line-expected]:text-emerald-400 [&_button]:mr-1 [&_button]:mt-2 [&_button]:h-7 [&_button]:rounded [&_button]:border [&_button]:border-zinc-700 [&_button]:bg-zinc-900 [&_button]:px-2 [&_button]:text-[0.6875rem] [&_button]:text-zinc-300 [&_button]:hover:border-zinc-500 [&_button]:hover:bg-zinc-800 [&_button]:hover:text-white [&_del]:bg-emerald-400/15 [&_del]:text-emerald-300 [&_del]:no-underline [&_ins]:bg-red-400/15 [&_ins]:text-red-300 [&_ins]:no-underline [&_p]:my-2 [&_pre]:my-1 [&_pre]:min-h-6 [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_strong]:text-zinc-100"
+                    class="text-xs leading-relaxed text-zinc-400 [&_button]:block [&_button]:w-full [&_button]:rounded [&_button]:border [&_button]:border-red-500/40 [&_button]:bg-red-500/10 [&_button]:p-2 [&_button]:text-left [&_button]:font-medium [&_button]:text-red-300 [&_button]:hover:border-red-400/60 [&_button]:hover:bg-red-500/15 [&_button]:hover:text-red-200 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-2 [&_button]:focus-visible:outline-red-400 [&_button:disabled]:cursor-default [&_button:disabled]:opacity-60 [&_li+li]:mt-1.5"
                     role="status"
                     aria-live="polite"
                     aria-atomic="true"
                 >
-                    <div id="result-content">Ready to run.</div>
+                    <div id="result-content">Run your code to see failed levels.</div>
                 </div>
             </section>
 

@@ -92,7 +92,10 @@ const levelNavigation = element<HTMLElement>("level-navigation");
 const levelGrid = element<HTMLDivElement>("level-grid");
 const inputTokens = element<HTMLElement>("level-input");
 const outputTokens = element<HTMLElement>("level-output");
+const challengeResult = element<HTMLDivElement>("challenge-result");
 const status = element<HTMLDivElement>("status");
+const failuresTabCount = element<HTMLSpanElement>("failures-tab-count");
+const failuresPanelCount = element<HTMLSpanElement>("failures-panel-count");
 const mobileTabButtons = [
     element<HTMLButtonElement>("challenge-tab"),
     element<HTMLButtonElement>("code-tab"),
@@ -413,78 +416,95 @@ function setMobileTab(tab: MobileTab): void {
     if (tab === "code") requestAnimationFrame(() => editor.requestMeasure());
 }
 
-function renderResult(): void {
+function renderChallengeResult(): void {
     if (running) {
-        status.textContent = "Running…";
+        challengeResult.textContent = "Running…";
         return;
     }
     if (runError !== undefined) {
-        status.textContent = `Run failed: ${runError}`;
+        challengeResult.textContent = `Run failed: ${runError}`;
         return;
     }
     if (lastRunTestedThrough < 0) {
-        status.textContent = "Ready to run.";
+        const label = document.createElement("strong");
+        label.textContent = "Your code returned";
+        const detail = document.createElement("p");
+        detail.textContent = "Run your code to see what it returns.";
+        challengeResult.replaceChildren(label, detail);
         return;
     }
 
     const failure = lastRunFailures.get(state.levelIndex);
-    const resultHeading = document.createElement("strong");
-    const resultDetail = document.createElement("p");
-    const children: HTMLElement[] = [resultHeading, resultDetail];
+    const actualLabel = document.createElement("strong");
+    actualLabel.textContent = "Your code returned";
+    const children: HTMLElement[] = [actualLabel];
 
-    if (!failure) {
-        resultHeading.textContent = "Pass";
-        resultDetail.textContent = `Level ${state.levelIndex + 1} passed.`;
+    if (failure?.error) {
+        children.push(codeBlock(`Error: ${failure.error.message}`));
     } else {
-        resultHeading.textContent = "Fail";
-        resultDetail.textContent = `Level ${state.levelIndex + 1} failed.`;
-        const expectedLabel = document.createElement("strong");
-        expectedLabel.textContent = "Expected output";
-        const expected = failure.renderedExpected;
-        children.push(expectedLabel, codeBlock(expected, true));
+        const actual = failure?.renderedActual ?? renderedLevels[state.levelIndex]?.expected;
+        if (actual === undefined) {
+            throw new Error(`Missing rendered output for level ${state.levelIndex + 1}.`);
+        }
+        children.push(codeBlock(actual, true));
+    }
 
+    if (failure) {
+        const diffLabel = document.createElement("strong");
+        diffLabel.textContent = "Diff";
+        children.push(diffLabel);
         if (failure.error) {
-            const errorLabel = document.createElement("strong");
-            errorLabel.textContent = "Error";
-            children.push(errorLabel, codeBlock(failure.error.message));
+            const unavailable = document.createElement("p");
+            unavailable.textContent = "A diff is unavailable because your code returned an error.";
+            children.push(unavailable);
         } else {
             const actual = failure.renderedActual;
             if (actual === undefined) {
                 throw new Error(`Missing rendered output for level ${failure.levelIndex + 1}.`);
             }
-            const actualLabel = document.createElement("strong");
-            actualLabel.textContent = "Your code returned";
-            const diffLabel = document.createElement("strong");
-            diffLabel.textContent = "Diff";
-            children.push(
-                actualLabel,
-                codeBlock(actual, true),
-                diffLabel,
-                renderDiff(document, expected, actual),
-            );
+            children.push(renderDiff(document, failure.renderedExpected, actual));
         }
+    }
+    challengeResult.replaceChildren(...children);
+}
+
+function renderResults(): void {
+    const failureCount = lastRunFailures.size;
+    const badgeCount = failureCount - 1;
+    for (const badge of [failuresTabCount, failuresPanelCount]) {
+        badge.hidden = badgeCount <= 0;
+        badge.textContent = String(badgeCount);
     }
 
-    const otherFailures = [...lastRunFailures.values()]
-        .filter(other => other.levelIndex !== state.levelIndex);
-    if (otherFailures.length > 0) {
-        const otherLabel = document.createElement("p");
-        otherLabel.textContent = "Other failing levels:";
-        const links = document.createElement("div");
-        for (const other of otherFailures) {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.textContent = `Level ${other.levelIndex + 1}`;
-            button.addEventListener("click", () => focusFailure(other));
-            links.append(button);
-        }
-        children.push(otherLabel, links);
-    } else {
-        const otherSummary = document.createElement("p");
-        otherSummary.textContent = "All other tested levels passed.";
-        children.push(otherSummary);
+    if (running) {
+        status.textContent = "Running…";
+        return;
     }
-    status.replaceChildren(...children);
+    if (lastRunTestedThrough < 0) {
+        status.textContent = "Run your code to see failed levels.";
+        return;
+    }
+
+    const failures = [...lastRunFailures.values()]
+        .toSorted((left, right) => left.levelIndex - right.levelIndex);
+    if (failures.length === 0) {
+        status.textContent = "All tested levels passed.";
+        return;
+    }
+
+    const list = document.createElement("ul");
+    for (const failure of failures) {
+        const item = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        const current = failure.levelIndex === state.levelIndex;
+        button.textContent = `Level ${failure.levelIndex + 1} failed`;
+        if (current) button.setAttribute("aria-current", "step");
+        button.addEventListener("click", () => focusFailure(failure));
+        item.append(button);
+        list.append(item);
+    }
+    status.replaceChildren(list);
 }
 
 function levelState(levelIndex: number): "failed" | "passed" | "unlocked" {
@@ -602,13 +622,14 @@ function render(): void {
     renderCodeVersions();
     renderLevel();
     renderLevelGrid();
-    renderResult();
+    renderChallengeResult();
+    renderResults();
     setMobileTab(activeMobileTab);
 }
 
 function focusFailure(failure: LevelFailure): void {
     goToLevel(failure.levelIndex);
-    setMobileTab("results");
+    setMobileTab("challenge");
 }
 
 function goToLevel(levelIndex: number): void {
@@ -661,7 +682,7 @@ async function runGame(): Promise<void> {
             }
         }
         saveState();
-        activeMobileTab = "results";
+        activeMobileTab = lastRunFailures.has(state.levelIndex) ? "challenge" : "results";
     } catch (error) {
         runError = error instanceof Error ? error.message : String(error);
     } finally {
