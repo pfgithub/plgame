@@ -374,7 +374,6 @@ const editor = new EditorView({
         keymap.of([indentWithTab]),
         editorReadOnly.of([
             EditorState.readOnly.of(selectedCodeVersion().kind === "checkpoint"),
-            EditorView.editable.of(selectedCodeVersion().kind === "custom"),
         ]),
         EditorView.updateListener.of((update) => {
             if (!update.docChanged || switchingCodeVersion) return;
@@ -413,7 +412,6 @@ function selectCodeVersion(versionId: string): void {
             changes: {from: 0, to: editor.state.doc.length, insert: version.code},
             effects: editorReadOnly.reconfigure([
                 EditorState.readOnly.of(version.kind === "checkpoint"),
-                EditorView.editable.of(version.kind === "custom"),
             ]),
         });
     } finally {
