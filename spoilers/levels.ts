@@ -517,7 +517,9 @@ for (const [i, level] of levels.flat().entries()) {
 
 await Bun.write(
     new URL("../src/levels.json", import.meta.url),
-    `${JSON.stringify(levels.flat().flatMap(({input, output}) => [input, output]))}\n`,
+    `${JSON.stringify(levels.map(group =>
+        group.flatMap(({input, output}) => [input, output]),
+    ))}\n`,
 );
 
 // execution:

@@ -13,6 +13,7 @@ import {
     createElement as createIconElement,
     createIcons,
     Info,
+    Pencil,
     Plus,
     Settings,
 } from "lucide";
@@ -35,17 +36,22 @@ import {
 } from "./game-logic.ts";
 import levelData from "./levels.json";
 
-const levels: Level[] = Array.from(
-    {length: levelData.length / 2},
-    (_, index) => ({
-        input: levelData[index * 2]! as Token[],
-        output: levelData[index * 2 + 1]! as Token[],
-    }),
+const levelGroups: Level[][] = levelData.map(groupData =>
+    Array.from(
+        {length: groupData.length / 2},
+        (_, index) => ({
+            input: groupData[index * 2]! as Token[],
+            output: groupData[index * 2 + 1]! as Token[],
+        }),
+    ),
 );
+const levels = levelGroups.flat();
 
 const STORAGE_KEY = "plgame-state";
 const CODE_VERSIONS_STORAGE_KEY = "plgame-code-versions";
+const LEVEL_GROUP_NAMES_STORAGE_KEY = "plgame-level-group-names";
 const CODE_VERSIONS_STORAGE_VERSION = 1;
+const LEVEL_GROUP_NAMES_STORAGE_VERSION = 1;
 const DEFAULT_CODE_VERSION_ID = "default-code";
 const MIN_RAIL_WIDTH = 288;
 const MIN_EDITOR_WIDTH = 360;
@@ -85,6 +91,7 @@ createIcons({
         ArrowRightToLine,
         ChevronDown,
         Info,
+        Pencil,
         Plus,
         Settings,
     },
@@ -293,6 +300,44 @@ const codeVersions = (() => {
     }
 })();
 
+function defaultLevelGroupNames(): string[] {
+    let firstLevelNumber = 1;
+    return levelGroups.map((group) => {
+        const lastLevelNumber = firstLevelNumber + group.length - 1;
+        const name = `Levels ${firstLevelNumber}-${lastLevelNumber}`;
+        firstLevelNumber = lastLevelNumber + 1;
+        return name;
+    });
+}
+
+function parseLevelGroupNames(serialized: string | null): string[] {
+    const defaults = defaultLevelGroupNames();
+    if (serialized === null) return defaults;
+
+    try {
+        const value: unknown = JSON.parse(serialized);
+        if (typeof value !== "object" || value === null) return defaults;
+        const saved = value as Record<string, unknown>;
+        if (
+            saved.version !== LEVEL_GROUP_NAMES_STORAGE_VERSION
+            || !Array.isArray(saved.names)
+            || saved.names.length !== levelGroups.length
+            || saved.names.some(name => typeof name !== "string" || name.trim().length === 0)
+        ) return defaults;
+        return saved.names.map(name => (name as string).trim());
+    } catch {
+        return defaults;
+    }
+}
+
+const levelGroupNames = (() => {
+    try {
+        return parseLevelGroupNames(localStorage.getItem(LEVEL_GROUP_NAMES_STORAGE_KEY));
+    } catch {
+        return defaultLevelGroupNames();
+    }
+})();
+
 function selectedCodeVersion(): CodeVersion {
     const version = codeVersions.versions.find(
         candidate => candidate.id === codeVersions.selectedVersionId,
@@ -338,6 +383,17 @@ function saveCodeVersions(): void {
             ...codeVersions,
             selectedVersionId,
             versions: persistedVersions,
+        }));
+    } catch {
+        // Storage can be disabled without preventing the game from working.
+    }
+}
+
+function saveLevelGroupNames(): void {
+    try {
+        localStorage.setItem(LEVEL_GROUP_NAMES_STORAGE_KEY, JSON.stringify({
+            version: LEVEL_GROUP_NAMES_STORAGE_VERSION,
+            names: levelGroupNames,
         }));
     } catch {
         // Storage can be disabled without preventing the game from working.
@@ -698,48 +754,110 @@ function levelState(levelIndex: number): "failed" | "passed" | "unlocked" {
 
 function renderLevelGrid(): void {
     if (!levelNavigationExpanded) return;
-    const buttons: HTMLButtonElement[] = [];
-    for (let levelIndex = 0; levelIndex <= state.highestLevelIndex; levelIndex++) {
-        const button = document.createElement("button");
-        const itemState = levelState(levelIndex);
-        const current = levelIndex === state.levelIndex;
-        button.type = "button";
-        button.dataset.levelState = itemState;
-        const name = document.createElement("strong");
-        const nameLabel = document.createElement("span");
-        nameLabel.textContent = `Level ${levelIndex + 1}`;
-        name.append(nameLabel);
-        const executionTimeMs = renderedLevels[levelIndex]?.executionTimeMs;
-        const timing = document.createElement("small");
-        timing.className = "level-grid-time";
-        const executionTime = executionTimeMs === undefined
-            ? "Not run"
-            : `${executionTimeMs.toFixed(2)} ms`;
-        if (itemState === "failed") {
-            timing.className += " flex items-center gap-1 !text-red-300";
-            const failureIcon = createIconElement(CircleX, {
-                "aria-hidden": "true",
-                "class": "lucide lucide-circle-x shrink-0",
-                "height": 12,
-                "width": 12,
-            });
-            timing.append(failureIcon, `Failed · ${executionTime}`);
-        } else {
-            timing.textContent = executionTime;
-        }
-        button.replaceChildren(name, timing);
-        button.setAttribute(
-            "aria-label",
-            `Level ${levelIndex + 1}, ${itemState}, ${timing.textContent}${current ? ", current" : ""}`,
-        );
-        if (current) button.setAttribute("aria-current", "step");
-        button.addEventListener("click", () => {
-            levelNavigationExpanded = false;
-            goToLevel(levelIndex);
+    const sections: HTMLElement[] = [];
+    let groupStartIndex = 0;
+    for (const [groupIndex, group] of levelGroups.entries()) {
+        if (groupStartIndex > state.highestLevelIndex) break;
+        const groupName = levelGroupNames[groupIndex]
+            ?? defaultLevelGroupNames()[groupIndex]
+            ?? "Levels";
+
+        const section = document.createElement("section");
+        const headingId = `level-group-${groupIndex}-heading`;
+        section.setAttribute("aria-labelledby", headingId);
+
+        const header = document.createElement("div");
+        header.className = "mb-1.5 flex items-center gap-1.5";
+        const heading = document.createElement("h3");
+        heading.id = headingId;
+        heading.className = "min-w-0 truncate text-xs font-semibold text-zinc-400";
+        heading.textContent = groupName;
+
+        const editButton = document.createElement("button");
+        editButton.type = "button";
+        editButton.className = "grid size-6 shrink-0 place-items-center rounded text-zinc-600 hover:bg-zinc-900 hover:text-zinc-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400";
+        editButton.setAttribute("aria-label", `Rename ${groupName}`);
+        editButton.append(createIconElement(Pencil, {
+            "aria-hidden": "true",
+            "class": "lucide lucide-pencil",
+            "height": 12,
+            "width": 12,
+        }));
+        editButton.addEventListener("click", () => {
+            openNameModal(
+                "Rename level group",
+                "Choose a name for this group of levels.",
+                "Rename",
+                groupName,
+                (name) => {
+                    if (name.length === 0) return "Group names cannot be empty.";
+                    levelGroupNames[groupIndex] = name;
+                    saveLevelGroupNames();
+                    render();
+                    return undefined;
+                },
+            );
         });
-        buttons.push(button);
+        header.append(heading, editButton);
+
+        const grid = document.createElement("div");
+        grid.className = "grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-1.5";
+        const buttons: HTMLButtonElement[] = [];
+        const groupEndIndex = Math.min(
+            groupStartIndex + group.length - 1,
+            state.highestLevelIndex,
+        );
+        for (
+            let levelIndex = groupStartIndex;
+            levelIndex <= groupEndIndex;
+            levelIndex++
+        ) {
+            const button = document.createElement("button");
+            const itemState = levelState(levelIndex);
+            const current = levelIndex === state.levelIndex;
+            button.type = "button";
+            button.className = "grid gap-0.5 rounded border border-zinc-800 bg-zinc-900/60 p-2 text-left text-zinc-300 hover:border-zinc-600 hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 data-[level-state=failed]:border-red-500/40 data-[level-state=failed]:bg-red-500/10 data-[level-state=failed]:text-red-300 data-[level-state=passed]:border-emerald-500/30 data-[level-state=passed]:bg-emerald-500/10 data-[level-state=passed]:text-emerald-300 aria-[current=step]:border-violet-400 aria-[current=step]:ring-1 aria-[current=step]:ring-violet-400";
+            button.dataset.levelState = itemState;
+            const name = document.createElement("strong");
+            const nameLabel = document.createElement("span");
+            nameLabel.textContent = `Level ${levelIndex + 1}`;
+            name.append(nameLabel);
+            const executionTimeMs = renderedLevels[levelIndex]?.executionTimeMs;
+            const timing = document.createElement("small");
+            timing.className = "level-grid-time text-[0.625rem] font-normal text-zinc-600";
+            const executionTime = executionTimeMs === undefined
+                ? "Not run"
+                : `${executionTimeMs.toFixed(2)} ms`;
+            if (itemState === "failed") {
+                timing.className += " flex items-center gap-1 !text-red-300";
+                const failureIcon = createIconElement(CircleX, {
+                    "aria-hidden": "true",
+                    "class": "lucide lucide-circle-x shrink-0",
+                    "height": 12,
+                    "width": 12,
+                });
+                timing.append(failureIcon, `Failed · ${executionTime}`);
+            } else {
+                timing.textContent = executionTime;
+            }
+            button.replaceChildren(name, timing);
+            button.setAttribute(
+                "aria-label",
+                `Level ${levelIndex + 1}, ${itemState}, ${timing.textContent}${current ? ", current" : ""}`,
+            );
+            if (current) button.setAttribute("aria-current", "step");
+            button.addEventListener("click", () => {
+                levelNavigationExpanded = false;
+                goToLevel(levelIndex);
+            });
+            buttons.push(button);
+        }
+        grid.replaceChildren(...buttons);
+        section.append(header, grid);
+        sections.push(section);
+        groupStartIndex += group.length;
     }
-    levelGrid.replaceChildren(...buttons);
+    levelGrid.replaceChildren(...sections);
 }
 
 function renderLevel(): void {
@@ -919,6 +1037,7 @@ function deleteAllProgress(): void {
             try {
                 localStorage.removeItem(STORAGE_KEY);
                 localStorage.removeItem(CODE_VERSIONS_STORAGE_KEY);
+                localStorage.removeItem(LEVEL_GROUP_NAMES_STORAGE_KEY);
             } finally {
                 window.location.reload();
             }
