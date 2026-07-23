@@ -1,12 +1,21 @@
 export type CodeExecutionResult =
-    | {ok: true, result: number[]}
+    | {ok: true, result: number[], renderedResult?: string}
     | {ok: false, error: Error};
 
-export function runCode(code: string, inputs: number[][]): Promise<CodeExecutionResult[]> {
+export type CodeRunResult = {
+    executions: CodeExecutionResult[],
+    renderings: string[],
+};
+
+export function runCode(
+    code: string,
+    inputs: number[][],
+    valuesToRender: number[][] = [],
+): Promise<CodeRunResult> {
     const EXECUTION_TIMEOUT_MS = 1_000;
     const SETUP_TIMEOUT_MS = 2_000;
 
-    return new Promise<CodeExecutionResult[]>((resolve, reject) => {
+    return new Promise<CodeRunResult>((resolve, reject) => {
         const iframe = document.createElement("iframe");
         const channel = new MessageChannel();
 
@@ -23,7 +32,7 @@ export function runCode(code: string, inputs: number[][]): Promise<CodeExecution
             iframe.remove();
         };
 
-        const succeed = (result: CodeExecutionResult[]): void => {
+        const succeed = (result: CodeRunResult): void => {
             if (settled) return;
             settled = true;
             cleanup();
@@ -47,6 +56,7 @@ export function runCode(code: string, inputs: number[][]): Promise<CodeExecution
                 type: "run",
                 code: string,
                 inputs: number[][],
+                valuesToRender: number[][],
                 timeoutMs: number,
             };
 
@@ -59,8 +69,9 @@ export function runCode(code: string, inputs: number[][]): Promise<CodeExecution
             type WorkerResponse =
                 | {
                     ok: true,
+                    renderings: string[],
                     results: Array<
-                        | {ok: true, result: number[]}
+                        | {ok: true, result: number[], renderedResult: string}
                         | {ok: false, error: SerializedError}
                     >,
                 }
@@ -86,20 +97,21 @@ export function runCode(code: string, inputs: number[][]): Promise<CodeExecution
                 };
 
                 self.addEventListener("message", async (event) => {
-                    const {code, inputs} = event.data as {
+                    const {code, inputs, valuesToRender} = event.data as {
                         code: string,
                         inputs: number[][],
+                        valuesToRender: number[][],
                     };
 
                     try {
                         /*
-             * Appending `return execute` keeps execute inside the generated
-             * function's scope, whether it was declared as:
+             * Returning both functions keeps them inside the generated
+             * function's scope, however they were declared.
              *
              *   function execute(input) {}
              *   const execute = input => {}
              */
-                        const createExecute = new Function(
+                        const createFunctions = new Function(
                             `"use strict";
 
 ${code}
@@ -110,13 +122,35 @@ if (typeof execute !== "function") {
   );
 }
 
-return execute;
-`,
-                        ) as () => (input: number[]) => unknown;
+if (typeof render !== "function") {
+  throw new Error(
+    "The submitted code must define a function named render(tokens)."
+  );
+}
 
-                        const execute = createExecute();
+return {execute, render};
+`,
+                        ) as () => {
+                            execute: (input: number[]) => unknown,
+                            render: (tokens: number[]) => unknown,
+                        };
+
+                        const {execute, render} = createFunctions();
+                        const renderTokens = async (tokens: number[]): Promise<string> => {
+                            const rendered = await render([...tokens]);
+                            if (typeof rendered !== "string") {
+                                throw new TypeError(
+                                    "render(tokens) must return a string or a Promise<string>.",
+                                );
+                            }
+                            return rendered;
+                        };
+                        const renderings: string[] = [];
+                        for (const value of valuesToRender) {
+                            renderings.push(await renderTokens(value));
+                        }
                         const results: Array<
-                            | {ok: true, result: number[]}
+                            | {ok: true, result: number[], renderedResult: string}
                             | {ok: false, error: SerializedError}
                         > = [];
 
@@ -136,7 +170,11 @@ return execute;
                                     );
                                 }
 
-                                results.push({ok: true, result});
+                                results.push({
+                                    ok: true,
+                                    result,
+                                    renderedResult: await renderTokens(result),
+                                });
                             } catch (error) {
                                 results.push({ok: false, error: serializeError(error)});
                             }
@@ -144,6 +182,7 @@ return execute;
 
                         const response: WorkerResponse = {
                             ok: true,
+                            renderings,
                             results,
                         };
 
@@ -229,6 +268,7 @@ return execute;
                     worker.postMessage({
                         code: request.code,
                         inputs: request.inputs,
+                        valuesToRender: request.valuesToRender,
                     });
                 },
                 {once: true},
@@ -267,6 +307,7 @@ return execute;
                     type: "run",
                     code,
                     inputs,
+                    valuesToRender,
                     timeoutMs: EXECUTION_TIMEOUT_MS,
                 },
                 "*",
@@ -280,8 +321,9 @@ return execute;
             const response = event.data as
                 | {
                     ok: true,
+                    renderings: string[],
                     results: Array<
-                        | {ok: true, result: number[]}
+                        | {ok: true, result: number[], renderedResult: string}
                         | {
                             ok: false,
                             error: {
@@ -302,14 +344,17 @@ return execute;
                 };
 
             if (response?.ok === true) {
-                succeed(response.results.map((execution) => {
-                    if (execution.ok) return execution;
+                succeed({
+                    executions: response.results.map((execution) => {
+                        if (execution.ok) return execution;
 
-                    const error = new Error(execution.error.message ?? "Code execution failed.");
-                    error.name = execution.error.name ?? "ExecutionError";
-                    if (execution.error.stack) error.stack = execution.error.stack;
-                    return {ok: false, error};
-                }));
+                        const error = new Error(execution.error.message ?? "Code execution failed.");
+                        error.name = execution.error.name ?? "ExecutionError";
+                        if (execution.error.stack) error.stack = execution.error.stack;
+                        return {ok: false, error};
+                    }),
+                    renderings: response.renderings,
+                });
                 return;
             }
 

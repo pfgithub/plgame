@@ -28,11 +28,18 @@
             border-left: 1px solid;
         }
 
-        .tokens {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.25rem;
+        pre {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
             min-height: 1.5rem;
+        }
+
+        del {
+            background: #ccffd8;
+        }
+
+        ins {
+            background: #ffd7d5;
         }
 
         #level-grid {
@@ -61,11 +68,11 @@
             <div id="level-detail">
                 <h1 id="level-number"></h1>
                 <h2>Input</h2>
-                <div id="level-input" class="tokens"></div>
+                <pre><code id="level-input"></code></pre>
                 <h2>Expected output</h2>
-                <div id="level-output" class="tokens"></div>
+                <pre><code id="level-output"></code></pre>
                 <p><button id="run" type="button">Run</button></p>
-                <p id="status" role="status" aria-live="polite"></p>
+                <div id="status" role="status" aria-live="polite"></div>
             </div>
             <div id="level-picker" hidden>
                 <h1>Levels</h1>

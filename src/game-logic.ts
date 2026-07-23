@@ -1,7 +1,11 @@
 import type { Level, Token } from "./levels.ts";
 import type { CodeExecutionResult } from "./executor.ts";
 
-export const DEFAULT_CODE = `function execute(tokens) {
+export const DEFAULT_CODE = `function render(tokens) {
+    return tokens.join(" ");
+}
+
+function execute(tokens) {
     return tokens;
 }`;
 
@@ -14,18 +18,29 @@ export type GameState = {
 export type LevelFailure = {
     levelIndex: number,
     expected: number[],
+    renderedExpected?: string,
     actual?: number[],
+    renderedActual?: string,
     error?: Error,
 };
 
+export type RenderedLevel = {
+    input: string,
+    expected: string,
+};
+
 export type ProgressionResult =
-    | {kind: "past-failures", levelIndex: number, pastFailures: LevelFailure[]}
-    | {kind: "failed", levelIndex: number, failure: LevelFailure, pastFailures: LevelFailure[]}
-    | {kind: "complete", levelIndex: number, pastFailures: LevelFailure[]};
+    | {kind: "past-failures", levelIndex: number, pastFailures: LevelFailure[], renderedLevels: RenderedLevel[]}
+    | {kind: "failed", levelIndex: number, failure: LevelFailure, pastFailures: LevelFailure[], renderedLevels: RenderedLevel[]}
+    | {kind: "complete", levelIndex: number, pastFailures: LevelFailure[], renderedLevels: RenderedLevel[]};
 
-type Runner = (code: string, inputs: number[][]) => Promise<CodeExecutionResult[]>;
+type Runner = (
+    code: string,
+    inputs: number[][],
+    valuesToRender: number[][],
+) => Promise<CodeExecutionResult[] | {executions: CodeExecutionResult[], renderings: string[]}>;
 
-const STORAGE_VERSION = 3;
+const STORAGE_VERSION = 4;
 
 export function defaultState(): GameState {
     return {
@@ -57,26 +72,67 @@ export async function runProgression(
     }
 
     let executions: CodeExecutionResult[];
+    let renderings: string[];
     try {
-        executions = runnableLevels.length === 0
-            ? []
-            : await runner(code, runnableLevels.map(level => level.input));
+        if (runnableLevels.length === 0) {
+            executions = [];
+            renderings = [];
+        } else {
+            const run = await runner(
+                code,
+                runnableLevels.map(level => level.input),
+                runnableLevels.flatMap(level => [level.input, level.expected]),
+            );
+            if (Array.isArray(run)) {
+                executions = run;
+                renderings = runnableLevels.flatMap(level => [
+                    level.input.join(" "),
+                    level.expected.join(" "),
+                ]);
+            } else {
+                executions = run.executions;
+                renderings = run.renderings;
+            }
+        }
     } catch (error) {
         const executionError = error instanceof Error ? error : new Error(String(error));
         executions = runnableLevels.map(() => ({ok: false, error: executionError}));
+        renderings = runnableLevels.flatMap(level => [
+            level.input.join(" "),
+            level.expected.join(" "),
+        ]);
     }
     if (executions.length !== runnableLevels.length) {
         throw new Error("The code runner returned an unexpected number of results.");
     }
+    if (renderings.length !== runnableLevels.length * 2) {
+        throw new Error("The code runner returned an unexpected number of renderings.");
+    }
+
+    const renderedLevels = runnableLevels.map((level, index): RenderedLevel => ({
+        input: renderings[index * 2] ?? level.input.join(" "),
+        expected: renderings[index * 2 + 1] ?? level.expected.join(" "),
+    }));
 
     const failures = runnableLevels.map((level, index): LevelFailure | undefined => {
         const execution = executions[index];
         if (!execution) throw new Error(`Missing execution result for level ${level.levelIndex + 1}.`);
         if (!execution.ok) {
-            return {levelIndex: level.levelIndex, expected: level.expected, error: execution.error};
+            return {
+                levelIndex: level.levelIndex,
+                expected: level.expected,
+                renderedExpected: renderedLevels[index]?.expected,
+                error: execution.error,
+            };
         }
         if (!arraysEqual(execution.result, level.expected)) {
-            return {levelIndex: level.levelIndex, expected: level.expected, actual: execution.result};
+            return {
+                levelIndex: level.levelIndex,
+                expected: level.expected,
+                renderedExpected: renderedLevels[index]?.expected,
+                actual: execution.result,
+                renderedActual: execution.renderedResult,
+            };
         }
         return undefined;
     });
@@ -90,18 +146,18 @@ export async function runProgression(
     }
 
     if (currentFailure) {
-        return {kind: "failed", levelIndex: currentLevelIndex, failure: currentFailure, pastFailures};
+        return {kind: "failed", levelIndex: currentLevelIndex, failure: currentFailure, pastFailures, renderedLevels};
     }
     if (pastFailures.length > 0) {
-        return {kind: "past-failures", levelIndex: currentLevelIndex, pastFailures};
+        return {kind: "past-failures", levelIndex: currentLevelIndex, pastFailures, renderedLevels};
     }
 
     for (let levelIndex = currentLevelIndex + 1; levelIndex < levels.length; levelIndex++) {
         const failure = failures[levelIndex];
-        if (failure) return {kind: "failed", levelIndex, failure, pastFailures};
+        if (failure) return {kind: "failed", levelIndex, failure, pastFailures, renderedLevels};
     }
 
-    return {kind: "complete", levelIndex: Math.max(0, levels.length - 1), pastFailures};
+    return {kind: "complete", levelIndex: Math.max(0, levels.length - 1), pastFailures, renderedLevels};
 }
 
 export function serializeState(state: GameState): string {
@@ -117,7 +173,10 @@ export function parseState(serialized: string | null, levelCount: number): GameS
 
         const saved = value as Record<string, unknown>;
         if (
-            (saved.version !== 1 && saved.version !== 2 && saved.version !== STORAGE_VERSION)
+            (saved.version !== 1
+                && saved.version !== 2
+                && saved.version !== 3
+                && saved.version !== STORAGE_VERSION)
             || typeof saved.code !== "string"
             || !Number.isInteger(saved.levelIndex)
             || typeof saved.levelIndex !== "number"
@@ -136,7 +195,13 @@ export function parseState(serialized: string | null, levelCount: number): GameS
         ) return defaultState();
 
         return {
-            code: saved.code,
+            code: saved.version === STORAGE_VERSION
+                ? saved.code
+                : `function render(tokens) {
+    return tokens.join(" ");
+}
+
+${saved.code}`,
             levelIndex: saved.levelIndex,
             highestLevelIndex,
         };

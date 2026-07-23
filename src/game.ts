@@ -2,14 +2,16 @@ import { javascript } from "@codemirror/lang-javascript";
 import { indentWithTab } from "@codemirror/commands";
 import { keymap } from "@codemirror/view";
 import { basicSetup, EditorView } from "codemirror";
+import DiffMatchPatch from "diff-match-patch";
 import { runCode } from "./executor.ts";
 import {
     type LevelFailure,
     parseState,
+    type RenderedLevel,
     runProgression,
     serializeState,
 } from "./game-logic.ts";
-import { levels, type Token } from "./levels.ts";
+import { levels } from "./levels.ts";
 
 const STORAGE_KEY = "plgame-state";
 
@@ -28,10 +30,10 @@ const levelDetail = element<HTMLDivElement>("level-detail");
 const levelPicker = element<HTMLDivElement>("level-picker");
 const levelGrid = element<HTMLDivElement>("level-grid");
 const levelNumber = element<HTMLHeadingElement>("level-number");
-const inputTokens = element<HTMLDivElement>("level-input");
-const outputTokens = element<HTMLDivElement>("level-output");
+const inputTokens = element<HTMLElement>("level-input");
+const outputTokens = element<HTMLElement>("level-output");
 const runButton = element<HTMLButtonElement>("run");
-const status = element<HTMLParagraphElement>("status");
+const status = element<HTMLDivElement>("status");
 
 const state = (() => {
     try {
@@ -43,6 +45,11 @@ const state = (() => {
 let running = false;
 let showingLevelPicker = false;
 let lastPastFailures: LevelFailure[] = [];
+let renderedLevels: RenderedLevel[] = levels.map(level => ({
+    input: level.input.join(" "),
+    expected: level.output.join(" "),
+}));
+const diffEngine = new DiffMatchPatch();
 
 function save(): void {
     try {
@@ -71,12 +78,55 @@ function setStatus(message: string): void {
     status.textContent = message;
 }
 
-function renderTokens(parent: HTMLElement, tokens: Token[]): void {
-    parent.replaceChildren(...tokens.map((token) => {
-        const value = document.createElement("span");
-        value.textContent = String(token);
-        return value;
-    }));
+function codeBlock(text: string): HTMLPreElement {
+    const pre = document.createElement("pre");
+    const code = document.createElement("code");
+    code.textContent = text;
+    pre.append(code);
+    return pre;
+}
+
+function renderFailure(levelIndex: number, failure: LevelFailure): void {
+    if (failure.error) {
+        setStatus(`Level ${levelIndex + 1} failed: ${failure.error.message}`);
+        return;
+    }
+
+    const expected = failure.renderedExpected ?? failure.expected.join(" ");
+    const actual = failure.renderedActual ?? failure.actual?.join(" ") ?? "";
+    const summary = document.createElement("p");
+    summary.textContent = `Level ${levelIndex + 1} failed.`;
+    const expectedLabel = document.createElement("strong");
+    expectedLabel.textContent = "Expected";
+    const actualLabel = document.createElement("strong");
+    actualLabel.textContent = "Received";
+    const diffLabel = document.createElement("strong");
+    diffLabel.textContent = "Diff";
+    const diff = document.createElement("code");
+    const changes = diffEngine.diff_main(expected, actual);
+    diffEngine.diff_cleanupSemantic(changes);
+    for (const [operation, text] of changes) {
+        const part = document.createElement(
+            operation === DiffMatchPatch.DIFF_DELETE
+                ? "del"
+                : operation === DiffMatchPatch.DIFF_INSERT
+                    ? "ins"
+                    : "span",
+        );
+        part.textContent = text;
+        diff.append(part);
+    }
+    const diffPre = document.createElement("pre");
+    diffPre.append(diff);
+    status.replaceChildren(
+        summary,
+        expectedLabel,
+        codeBlock(expected),
+        actualLabel,
+        codeBlock(actual),
+        diffLabel,
+        diffPre,
+    );
 }
 
 function goToLevel(levelIndex: number): void {
@@ -124,8 +174,9 @@ function renderLevel(): void {
     if (!level) throw new Error(`Missing level ${state.levelIndex + 1}.`);
 
     levelNumber.textContent = `Level ${state.levelIndex + 1} of ${levels.length}`;
-    renderTokens(inputTokens, level.input);
-    renderTokens(outputTokens, level.output);
+    const rendered = renderedLevels[state.levelIndex];
+    inputTokens.textContent = rendered?.input ?? level.input.join(" ");
+    outputTokens.textContent = rendered?.expected ?? level.output.join(" ");
     runButton.disabled = running;
 
     if (!running) setStatus("Ready to run.");
@@ -164,6 +215,7 @@ runButton.addEventListener("click", async () => {
     state.levelIndex = result.levelIndex;
     state.highestLevelIndex = Math.max(state.highestLevelIndex, result.levelIndex);
     lastPastFailures = result.pastFailures;
+    renderedLevels = result.renderedLevels;
     running = false;
     save();
     render();
@@ -171,13 +223,7 @@ runButton.addEventListener("click", async () => {
     if (result.kind === "past-failures") {
         setStatus("This level passed, but every earlier level must also pass before you can continue.");
     } else if (result.kind === "failed") {
-        if (result.failure.error) {
-            setStatus(`Level ${result.levelIndex + 1} failed: ${result.failure.error.message}`);
-        } else {
-            setStatus(
-                `Level ${result.levelIndex + 1} failed. Expected ${JSON.stringify(result.failure.expected)}, received ${JSON.stringify(result.failure.actual)}.`,
-            );
-        }
+        renderFailure(result.levelIndex, result.failure);
     } else {
         setStatus("All levels passed.");
     }
