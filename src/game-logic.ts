@@ -21,11 +21,11 @@ export type LevelFailure = {
     error?: Error,
 };
 
-export type ProgressionResult
-    = | {kind: "blocked", levelIndex: number, pastFailures: LevelFailure[]}
-        | {kind: "past-failures", levelIndex: number, pastFailures: LevelFailure[]}
-        | {kind: "failed", levelIndex: number, failure: LevelFailure, pastFailures: LevelFailure[]}
-        | {kind: "complete", levelIndex: number, pastFailures: LevelFailure[]};
+export type ProgressionResult =
+    | {kind: "blocked", levelIndex: number, pastFailures: LevelFailure[]}
+    | {kind: "past-failures", levelIndex: number, pastFailures: LevelFailure[]}
+    | {kind: "failed", levelIndex: number, failure: LevelFailure, pastFailures: LevelFailure[]}
+    | {kind: "complete", levelIndex: number, pastFailures: LevelFailure[]};
 
 type Runner = (code: string, inputs: string[][]) => Promise<CodeExecutionResult[]>;
 

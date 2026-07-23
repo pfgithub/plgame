@@ -1,6 +1,6 @@
-export type CodeExecutionResult
-    = | {ok: true, result: string[]}
-        | {ok: false, error: Error};
+export type CodeExecutionResult =
+    | {ok: true, result: string[]}
+    | {ok: false, error: Error};
 
 export function runCode(code: string, inputs: string[][]): Promise<CodeExecutionResult[]> {
     const EXECUTION_TIMEOUT_MS = 1_000;
@@ -56,8 +56,8 @@ export function runCode(code: string, inputs: string[][]): Promise<CodeExecution
                 stack?: string,
             };
 
-            type WorkerResponse
-                = | {
+            type WorkerResponse =
+                | {
                     ok: true,
                     results: Array<
                         | {ok: true, result: string[]}
