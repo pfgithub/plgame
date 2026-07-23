@@ -1,13 +1,30 @@
-the concept is it is a game where you create an interpreter for a language you learn by example
+# Plgame ([Play](https://pfg.pw/plgame))
 
-it starts off with "unknown unknown"
+plgame is a game where you program an interpreter for a programming language in javascript. But you don't know the programming language, you have to learn it one level at a time.
 
-you can click to name a symbol
-- you have to do this to get access to it in js. and your code receives Token[] as input, where token is defined in typescript as a union of all your named symbols
+https://pfg.pw/plgame
 
-over the course of the game we explain the stack language, and then we add some features to it that require parsing. or something. idk. we could even do indentation based parsing. kind of interesting? ie: scopes & setting variables in a whitespace-sensitive language. hmmm.
+## Rules/Issues
 
-CHANGES TO MAKE:
+plgame does not currently enforce these rules, which trivialize the game and make it boring:
 
-- I don't really like '#' for numbers. let's instead do: if the previous symbol was a number, extend the number. else, start a new one. and then we need a ',' to end a number.
-- backwards is stupid? do we need backwards really?
+- Don't store the inputs to render() and use them to cheat at levels
+  - This may be fixed later by running render() seperately
+- Don't make a big map of correct inputs to outputs
+  - This may be fixed later by keeping hidden test levels, or just by using enough examples that it gets annoying.
+
+## Development
+
+```
+bun install
+
+# generate levels, fmt, lint, test
+bun check
+
+# run dev server
+bun generate-levels
+bun src/devserver
+
+# build static site
+bun build
+```
