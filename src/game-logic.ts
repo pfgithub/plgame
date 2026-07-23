@@ -6,6 +6,7 @@ import type {
 
 export type Token = number & {__is_token: true};
 export type Level = {input: Token[], output: Token[]};
+export type PreviewRenderMode = "player" | "json";
 
 export const DEFAULT_CODE = `
 // Write code in execute() to solve the level
@@ -23,6 +24,7 @@ export type GameState = {
     levelIndex: number,
     highestLevelIndex: number,
     railWidth: number,
+    previewRenderMode: PreviewRenderMode,
 };
 
 export type LevelFailure = {
@@ -65,6 +67,7 @@ export function defaultState(): GameState {
         levelIndex: 0,
         highestLevelIndex: 0,
         railWidth: DEFAULT_RAIL_WIDTH,
+        previewRenderMode: "player",
     };
 }
 
@@ -272,6 +275,7 @@ export function parseState(serialized: string | null, levelCount: number): GameS
             levelIndex: saved.levelIndex,
             highestLevelIndex,
             railWidth: saved.railWidth,
+            previewRenderMode: saved.previewRenderMode === "json" ? "json" : "player",
         };
     } catch {
         return defaultState();

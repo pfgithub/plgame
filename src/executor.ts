@@ -115,7 +115,7 @@ export function runCode(
 
             function workerMain(): void {
                 const consoleOutput: ConsoleOutputEntry[] = [];
-                const MAX_CONSOLE_LINES = 500;
+                const MAX_CONSOLE_LINES = 50000;
                 const MAX_CONSOLE_VALUE_LENGTH = 10_000;
                 let consoleTruncated = false;
                 let activeLevelIndex: number | undefined;
@@ -142,7 +142,7 @@ export function runCode(
                         if (!consoleTruncated) {
                             consoleTruncated = true;
                             consoleOutput.push({
-                                message: "[console output truncated]",
+                                message: `[console output truncated after ${MAX_CONSOLE_LINES} lines]`,
                                 ...(activeLevelIndex === undefined ? {} : {levelIndex: activeLevelIndex}),
                             });
                         }

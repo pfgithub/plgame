@@ -27,6 +27,7 @@ import {
     type Level,
     type LevelFailure,
     parseState,
+    type PreviewRenderMode,
     type RenderedLevel,
     runProgression,
     serializeState,
@@ -44,7 +45,6 @@ const levels: Level[] = Array.from(
 
 const STORAGE_KEY = "plgame-state";
 const CODE_VERSIONS_STORAGE_KEY = "plgame-code-versions";
-const PREVIEW_RENDER_MODE_STORAGE_KEY = "plgame-preview-render-mode";
 const CODE_VERSIONS_STORAGE_VERSION = 1;
 const DEFAULT_CODE_VERSION_ID = "default-code";
 const MIN_RAIL_WIDTH = 288;
@@ -53,7 +53,6 @@ const DIVIDER_WIDTH = 8;
 const RAIL_RESIZE_STEP = 24;
 
 type MobileTab = "challenge" | "console" | "code";
-type PreviewRenderMode = "player" | "json";
 
 type CustomCodeVersion = {
     id: string,
@@ -302,27 +301,9 @@ function selectedCodeVersion(): CodeVersion {
     return version;
 }
 
-function loadPreviewRenderMode(): PreviewRenderMode {
-    try {
-        return localStorage.getItem(PREVIEW_RENDER_MODE_STORAGE_KEY) === "json"
-            ? "json"
-            : "player";
-    } catch {
-        return "player";
-    }
-}
-
-function savePreviewRenderMode(): void {
-    try {
-        localStorage.setItem(PREVIEW_RENDER_MODE_STORAGE_KEY, previewRenderMode);
-    } catch {
-        // Storage can be disabled without preventing the game from working.
-    }
-}
-
 let running = false;
 let refreshingPreviews = false;
-let previewRenderMode = loadPreviewRenderMode();
+let previewRenderMode: PreviewRenderMode = state.previewRenderMode;
 let activeMobileTab: MobileTab = "code";
 let levelNavigationExpanded = false;
 let settingsExpanded = false;
@@ -1269,7 +1250,8 @@ runButton.addEventListener("click", () => void runGame());
 refreshPreviewsButton.addEventListener("click", () => void refreshPreviews());
 previewRenderModeInput.addEventListener("change", () => {
     previewRenderMode = previewRenderModeInput.checked ? "player" : "json";
-    savePreviewRenderMode();
+    state.previewRenderMode = previewRenderMode;
+    saveState();
     render();
 });
 closeSuccessModalButton.addEventListener("click", () => successModal.close());
