@@ -86,7 +86,7 @@
             top: 0;
             z-index: 1;
             display: grid;
-            grid-template-columns: auto minmax(0, 1fr) auto auto;
+            grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
             align-items: center;
             gap: 0.5rem;
             padding: 1rem;
@@ -98,6 +98,14 @@
             margin: 0;
             text-align: center;
             font-size: 1rem;
+        }
+
+        #level-number[data-level-state="failed"] {
+            color: #b42318;
+        }
+
+        #level-number[data-level-state="passed"] {
+            color: #087a36;
         }
 
         #challenge-panel, #results-panel {
@@ -112,27 +120,56 @@
             margin-top: 0;
         }
 
-        #toggle-levels {
-            width: 100%;
-            text-align: left;
+        #level-navigation {
+            flex: 1;
+            min-height: 0;
+            padding: 1rem;
+            overflow-y: auto;
         }
 
-        #level-navigation {
-            margin-block: 0.5rem 1rem;
+        #level-navigation[hidden] {
+            display: none;
+        }
+
+        #level-navigation h2 {
+            margin-top: 0;
         }
 
         #level-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.25rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+            gap: 0.5rem;
+        }
+
+        #level-grid button {
+            display: grid;
+            gap: 0.15rem;
+            padding: 0.65rem;
+            text-align: left;
         }
 
         #level-grid button[aria-current="step"] {
             outline: 2px solid;
         }
 
-        #level-grid button[data-level-state="failed"]::after {
-            content: " !";
+        #level-grid button[data-level-state="failed"] {
+            color: #7a271a;
+            background: #fecdca;
+        }
+
+        #level-grid button[data-level-state="passed"] {
+            color: #05603a;
+            background: #abefc6;
+        }
+
+        .level-grid-time {
+            font-size: 0.75rem;
+            opacity: 0.8;
+        }
+
+        main[data-browsing="true"] #challenge-panel,
+        main[data-browsing="true"] #results-panel {
+            display: none;
         }
 
         #result-content > :last-child {
@@ -157,6 +194,12 @@
                 position: static;
                 grid-row: 1;
                 grid-column: 1;
+                padding: 0.5rem;
+                gap: 0.25rem;
+            }
+
+            #toggle-levels {
+                padding-inline: 0.4rem;
             }
 
             #mobile-tabs {
@@ -200,6 +243,21 @@
             main[data-mobile-tab="results"] #results-panel {
                 display: block;
             }
+
+            main[data-browsing="true"] #mobile-tabs,
+            main[data-browsing="true"] #code-panel,
+            main[data-browsing="true"] #challenge-panel,
+            main[data-browsing="true"] #results-panel {
+                display: none;
+            }
+
+            main[data-browsing="true"] #level-navigation {
+                display: block;
+                grid-row: 2 / 4;
+                grid-column: 1;
+                min-height: 0;
+                overflow-y: auto;
+            }
         }
     </style>
 </head>
@@ -221,8 +279,21 @@
         <aside id="task-rail" aria-label="Current level">
             <header id="level-header">
                 <button id="previous-level" type="button" aria-label="Previous level">Back</button>
+                <button
+                    id="toggle-levels"
+                    type="button"
+                    aria-label="Browse unlocked levels"
+                    aria-controls="level-navigation"
+                    aria-expanded="false"
+                >Levels</button>
                 <h1 id="level-number"></h1>
                 <button id="next-level" type="button" aria-label="Next unlocked level">Forward</button>
+                <button
+                    id="latest-level"
+                    type="button"
+                    aria-label="Go to latest unlocked level"
+                    title="Go to latest unlocked level"
+                >&gt;|</button>
                 <button id="run" type="button" title="Run (Ctrl+Enter or Command+Enter)">Run</button>
             </header>
 
@@ -257,16 +328,6 @@
 
             <section id="challenge-panel" role="tabpanel" aria-labelledby="challenge-tab">
                 <h2>Challenge</h2>
-                <button
-                    id="toggle-levels"
-                    type="button"
-                    aria-controls="level-navigation"
-                    aria-expanded="false"
-                >Browse unlocked levels</button>
-                <nav id="level-navigation" aria-label="Unlocked levels" hidden>
-                    <div id="level-grid"></div>
-                </nav>
-
                 <h3>Input</h3>
                 <pre><code id="level-input"></code></pre>
                 <h3>Expected output</h3>
@@ -279,6 +340,11 @@
                     <div id="result-content">Ready to run.</div>
                 </div>
             </section>
+
+            <nav id="level-navigation" aria-label="Unlocked levels" hidden>
+                <h2>Unlocked levels</h2>
+                <div id="level-grid"></div>
+            </nav>
         </aside>
     </main>
     <script type="module" src="./game.ts"></script>

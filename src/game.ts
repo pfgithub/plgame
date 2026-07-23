@@ -21,11 +21,6 @@ const DIVIDER_WIDTH = 8;
 const RAIL_RESIZE_STEP = 24;
 
 type MobileTab = "challenge" | "code" | "results";
-type ResultState =
-    | {kind: "ready"}
-    | {kind: "running"}
-    | {kind: "failure", failure: LevelFailure, regression: boolean}
-    | {kind: "complete"};
 
 function element<T extends HTMLElement>(id: string): T {
     const found = document.querySelector<T>(`#${id}`);
@@ -38,6 +33,7 @@ const editorParent = element<HTMLDivElement>("editor");
 const divider = element<HTMLDivElement>("workspace-divider");
 const previousButton = element<HTMLButtonElement>("previous-level");
 const nextButton = element<HTMLButtonElement>("next-level");
+const latestButton = element<HTMLButtonElement>("latest-level");
 const runButton = element<HTMLButtonElement>("run");
 const levelNumber = element<HTMLHeadingElement>("level-number");
 const toggleLevelsButton = element<HTMLButtonElement>("toggle-levels");
@@ -85,14 +81,12 @@ function savedRailWidth(): number {
 let running = false;
 let activeMobileTab: MobileTab = "code";
 let levelNavigationExpanded = false;
-let resultState: ResultState = {kind: "ready"};
 let renderedLevels: RenderedLevel[] = levels.map(level => ({
     input: level.input.join(" "),
     expected: level.output.join(" "),
 }));
 let lastRunFailures = new Map<number, LevelFailure>();
 let lastRunTestedThrough = -1;
-let lastRunOrigin = state.levelIndex;
 let railWidth = savedRailWidth();
 
 function saveGame(): void {
@@ -164,57 +158,52 @@ function setMobileTab(tab: MobileTab): void {
 }
 
 function renderResult(): void {
-    if (resultState.kind === "ready") {
-        status.textContent = "Ready to run.";
-        return;
-    }
-    if (resultState.kind === "running") {
+    if (running) {
         status.textContent = "Running…";
         return;
     }
-    if (resultState.kind === "complete") {
-        const heading = document.createElement("strong");
-        heading.textContent = "All levels passed.";
-        const detail = document.createElement("p");
-        detail.textContent = "Your interpreter satisfies every challenge.";
-        status.replaceChildren(heading, detail);
+    if (lastRunTestedThrough < 0) {
+        status.textContent = "Ready to run.";
         return;
     }
 
-    const {failure, regression} = resultState;
-    const summary = document.createElement("p");
-    summary.textContent = regression
-        ? `Earlier level ${failure.levelIndex + 1} no longer passes.`
-        : `Level ${failure.levelIndex + 1} failed.`;
-    const expectedLabel = document.createElement("strong");
-    expectedLabel.textContent = "Expected output";
-    const expected = failure.renderedExpected ?? failure.expected.join(" ");
-    const children: HTMLElement[] = [
-        summary,
-        expectedLabel,
-        codeBlock(expected),
-    ];
+    const failure = lastRunFailures.get(state.levelIndex);
+    const resultHeading = document.createElement("strong");
+    const resultDetail = document.createElement("p");
+    const children: HTMLElement[] = [resultHeading, resultDetail];
 
-    if (failure.error) {
-        const errorLabel = document.createElement("strong");
-        errorLabel.textContent = "Error";
-        children.push(errorLabel, codeBlock(failure.error.message));
+    if (!failure) {
+        resultHeading.textContent = "Pass";
+        resultDetail.textContent = `Level ${state.levelIndex + 1} passed.`;
     } else {
-        const actual = failure.renderedActual ?? failure.actual?.join(" ") ?? "";
-        const actualLabel = document.createElement("strong");
-        actualLabel.textContent = "Your code returned";
-        const diffLabel = document.createElement("strong");
-        diffLabel.textContent = "Diff";
-        children.push(
-            actualLabel,
-            codeBlock(actual),
-            diffLabel,
-            renderDiff(document, expected, actual),
-        );
+        resultHeading.textContent = "Fail";
+        resultDetail.textContent = `Level ${state.levelIndex + 1} failed.`;
+        const expectedLabel = document.createElement("strong");
+        expectedLabel.textContent = "Expected output";
+        const expected = failure.renderedExpected ?? failure.expected.join(" ");
+        children.push(expectedLabel, codeBlock(expected));
+
+        if (failure.error) {
+            const errorLabel = document.createElement("strong");
+            errorLabel.textContent = "Error";
+            children.push(errorLabel, codeBlock(failure.error.message));
+        } else {
+            const actual = failure.renderedActual ?? failure.actual?.join(" ") ?? "";
+            const actualLabel = document.createElement("strong");
+            actualLabel.textContent = "Your code returned";
+            const diffLabel = document.createElement("strong");
+            diffLabel.textContent = "Diff";
+            children.push(
+                actualLabel,
+                codeBlock(actual),
+                diffLabel,
+                renderDiff(document, expected, actual),
+            );
+        }
     }
 
     const otherFailures = [...lastRunFailures.values()]
-        .filter(other => other.levelIndex !== failure.levelIndex)
+        .filter(other => other.levelIndex !== state.levelIndex)
         .sort((left, right) => left.levelIndex - right.levelIndex);
     if (otherFailures.length > 0) {
         const otherLabel = document.createElement("p");
@@ -228,6 +217,10 @@ function renderResult(): void {
             links.append(button);
         }
         children.push(otherLabel, links);
+    } else {
+        const otherSummary = document.createElement("p");
+        otherSummary.textContent = "All other tested levels passed.";
+        children.push(otherSummary);
     }
     status.replaceChildren(...children);
 }
@@ -246,14 +239,25 @@ function renderLevelGrid(): void {
         const itemState = levelState(levelIndex);
         const current = levelIndex === state.levelIndex;
         button.type = "button";
-        button.textContent = String(levelIndex + 1);
         button.dataset.levelState = itemState;
+        const name = document.createElement("strong");
+        name.textContent = `Level ${levelIndex + 1}`;
+        const executionTimeMs = renderedLevels[levelIndex]?.executionTimeMs;
+        const timing = document.createElement("small");
+        timing.className = "level-grid-time";
+        timing.textContent = executionTimeMs === undefined
+            ? "Not run"
+            : `${executionTimeMs.toFixed(2)} ms`;
+        button.replaceChildren(name, timing);
         button.setAttribute(
             "aria-label",
-            `Level ${levelIndex + 1}, ${itemState}${current ? ", current" : ""}`,
+            `Level ${levelIndex + 1}, ${itemState}, ${timing.textContent}${current ? ", current" : ""}`,
         );
         if (current) button.setAttribute("aria-current", "step");
-        button.addEventListener("click", () => goToLevel(levelIndex));
+        button.addEventListener("click", () => {
+            levelNavigationExpanded = false;
+            goToLevel(levelIndex);
+        });
         buttons.push(button);
     }
     levelGrid.replaceChildren(...buttons);
@@ -264,7 +268,10 @@ function renderLevel(): void {
     if (!level) throw new Error(`Missing level ${state.levelIndex + 1}.`);
     const rendered = renderedLevels[state.levelIndex];
 
-    levelNumber.textContent = `Level ${state.levelIndex + 1} of ${levels.length}`;
+    const itemState = levelState(state.levelIndex);
+    levelNumber.textContent = `Level ${state.levelIndex + 1}`;
+    if (itemState === "unlocked") delete levelNumber.dataset.levelState;
+    else levelNumber.dataset.levelState = itemState;
     inputTokens.textContent = rendered?.input ?? level.input.join(" ");
     outputTokens.textContent = rendered?.expected ?? level.output.join(" ");
 }
@@ -272,10 +279,16 @@ function renderLevel(): void {
 function render(): void {
     previousButton.disabled = running || state.levelIndex === 0;
     nextButton.disabled = running || state.levelIndex === state.highestLevelIndex;
+    latestButton.disabled = running || state.levelIndex === state.highestLevelIndex;
     runButton.disabled = running;
     runButton.textContent = running ? "Running…" : "Run";
     toggleLevelsButton.disabled = running;
     toggleLevelsButton.setAttribute("aria-expanded", String(levelNavigationExpanded));
+    toggleLevelsButton.setAttribute(
+        "aria-label",
+        levelNavigationExpanded ? "Close unlocked levels" : "Browse unlocked levels",
+    );
+    workspace.dataset.browsing = String(levelNavigationExpanded);
     levelNavigation.hidden = !levelNavigationExpanded;
     renderLevel();
     renderLevelGrid();
@@ -284,28 +297,13 @@ function render(): void {
 }
 
 function focusFailure(failure: LevelFailure): void {
-    state.levelIndex = failure.levelIndex;
-    resultState = {
-        kind: "failure",
-        failure,
-        regression: failure.levelIndex < lastRunOrigin,
-    };
-    saveGame();
-    render();
+    goToLevel(failure.levelIndex);
     setMobileTab("results");
 }
 
 function goToLevel(levelIndex: number): void {
     if (levelIndex < 0 || levelIndex > state.highestLevelIndex) return;
     state.levelIndex = levelIndex;
-    const knownFailure = lastRunFailures.get(levelIndex);
-    resultState = knownFailure
-        ? {
-                kind: "failure",
-                failure: knownFailure,
-                regression: levelIndex < lastRunOrigin,
-            }
-        : {kind: "ready"};
     saveGame();
     render();
 }
@@ -313,48 +311,24 @@ function goToLevel(levelIndex: number): void {
 async function runGame(): Promise<void> {
     if (running) return;
     running = true;
-    lastRunOrigin = state.levelIndex;
-    resultState = {kind: "running"};
     render();
 
     const result = await runProgression(
         editor.state.doc.toString(),
         levels,
         state.levelIndex,
+        state.highestLevelIndex,
         runCode,
     );
 
-    const failures = result.kind === "failed"
-        ? [...result.pastFailures, result.failure]
-        : result.pastFailures;
+    const failures = result.levelFailures.filter(
+        (failure): failure is LevelFailure => failure !== undefined,
+    );
     lastRunFailures = new Map(failures.map(failure => [failure.levelIndex, failure]));
-    lastRunTestedThrough = result.kind === "complete"
-        ? levels.length - 1
-        : result.levelIndex;
     renderedLevels = result.renderedLevels;
     state.highestLevelIndex = Math.max(state.highestLevelIndex, result.levelIndex);
+    lastRunTestedThrough = state.highestLevelIndex;
     running = false;
-
-    const earliestRegression = [...result.pastFailures]
-        .sort((left, right) => left.levelIndex - right.levelIndex)[0];
-    if (earliestRegression) {
-        state.levelIndex = earliestRegression.levelIndex;
-        resultState = {
-            kind: "failure",
-            failure: earliestRegression,
-            regression: true,
-        };
-    } else if (result.kind === "failed") {
-        state.levelIndex = result.levelIndex;
-        resultState = {
-            kind: "failure",
-            failure: result.failure,
-            regression: false,
-        };
-    } else {
-        state.levelIndex = result.levelIndex;
-        resultState = {kind: "complete"};
-    }
 
     saveGame();
     activeMobileTab = "results";
@@ -363,6 +337,7 @@ async function runGame(): Promise<void> {
 
 previousButton.addEventListener("click", () => goToLevel(state.levelIndex - 1));
 nextButton.addEventListener("click", () => goToLevel(state.levelIndex + 1));
+latestButton.addEventListener("click", () => goToLevel(state.highestLevelIndex));
 runButton.addEventListener("click", () => void runGame());
 toggleLevelsButton.addEventListener("click", () => {
     levelNavigationExpanded = !levelNavigationExpanded;

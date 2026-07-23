@@ -1,6 +1,6 @@
 export type CodeExecutionResult =
-    | {ok: true, result: number[], renderedResult?: string}
-    | {ok: false, error: Error};
+    | {ok: true, result: number[], renderedResult?: string, executionTimeMs?: number}
+    | {ok: false, error: Error, executionTimeMs?: number};
 
 export type CodeRunResult = {
     executions: CodeExecutionResult[],
@@ -71,8 +71,8 @@ export function runCode(
                     ok: true,
                     renderings: string[],
                     results: Array<
-                        | {ok: true, result: number[], renderedResult: string}
-                        | {ok: false, error: SerializedError}
+                        | {ok: true, result: number[], renderedResult: string, executionTimeMs: number}
+                        | {ok: false, error: SerializedError, executionTimeMs: number}
                     >,
                 }
                 | {
@@ -150,13 +150,15 @@ return {execute, render};
                             renderings.push(await renderTokens(value));
                         }
                         const results: Array<
-                            | {ok: true, result: number[], renderedResult: string}
-                            | {ok: false, error: SerializedError}
+                            | {ok: true, result: number[], renderedResult: string, executionTimeMs: number}
+                            | {ok: false, error: SerializedError, executionTimeMs: number}
                         > = [];
 
                         for (const input of inputs) {
+                            const executionStartedAt = performance.now();
                             try {
                                 const result = await execute(input);
+                                const executionTimeMs = performance.now() - executionStartedAt;
 
                                 if (!Array.isArray(result)) {
                                     throw new TypeError(
@@ -174,9 +176,14 @@ return {execute, render};
                                     ok: true,
                                     result,
                                     renderedResult: await renderTokens(result),
+                                    executionTimeMs,
                                 });
                             } catch (error) {
-                                results.push({ok: false, error: serializeError(error)});
+                                results.push({
+                                    ok: false,
+                                    error: serializeError(error),
+                                    executionTimeMs: performance.now() - executionStartedAt,
+                                });
                             }
                         }
 
@@ -323,7 +330,7 @@ return {execute, render};
                     ok: true,
                     renderings: string[],
                     results: Array<
-                        | {ok: true, result: number[], renderedResult: string}
+                        | {ok: true, result: number[], renderedResult: string, executionTimeMs: number}
                         | {
                             ok: false,
                             error: {
@@ -331,6 +338,7 @@ return {execute, render};
                                 message?: string,
                                 stack?: string,
                             },
+                            executionTimeMs: number,
                         }
                     >,
                 }
@@ -351,7 +359,7 @@ return {execute, render};
                         const error = new Error(execution.error.message ?? "Code execution failed.");
                         error.name = execution.error.name ?? "ExecutionError";
                         if (execution.error.stack) error.stack = execution.error.stack;
-                        return {ok: false, error};
+                        return {ok: false, error, executionTimeMs: execution.executionTimeMs};
                     }),
                     renderings: response.renderings,
                 });

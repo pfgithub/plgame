@@ -5,7 +5,7 @@ import type { Level, Token } from "./levels.ts";
 describe("user rendering", () => {
     test("carries rendered level and failure output through progression", async () => {
         const levels: Level[] = [{raw: "1", input: [1 as Token], output: [2 as Token]}];
-        const result = await runProgression("code", levels, 0, async (_code, _inputs, values) => ({
+        const result = await runProgression("code", levels, 0, 0, async (_code, _inputs, values) => ({
             executions: [{ok: true, result: [3], renderedResult: "<3>"}],
             renderings: values.map(tokens => `<${tokens.join(",")}>`),
         }));
