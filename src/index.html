@@ -34,7 +34,7 @@
                 </div>
                 <button
                     id="add-code-version"
-                    class="grid size-8 place-items-center rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 disabled:cursor-not-allowed disabled:opacity-40 [&_.lucide]:size-4"
+                    class="grid h-8 min-w-8 place-items-center rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 disabled:cursor-not-allowed disabled:opacity-40 [&_.lucide]:size-4"
                     type="button"
                     aria-label="Create code version"
                 >
@@ -243,6 +243,41 @@
             </nav>
         </aside>
     </main>
+    <dialog
+        id="action-modal"
+        class="m-auto w-[min(28rem,calc(100%-2rem))] rounded-lg border border-zinc-700 bg-zinc-950 p-0 text-zinc-200 shadow-2xl backdrop:bg-black/75"
+        aria-labelledby="action-modal-title"
+        aria-describedby="action-modal-description"
+    >
+        <form id="action-modal-form">
+            <header class="border-b border-zinc-800 px-4 py-3">
+                <h2 id="action-modal-title" class="font-semibold text-zinc-100"></h2>
+                <p id="action-modal-description" class="mt-1 text-xs leading-relaxed text-zinc-500"></p>
+            </header>
+            <div id="action-modal-input-section" class="px-4 py-3">
+                <label for="action-modal-input" class="mb-1.5 block text-xs font-medium text-zinc-300">Version name</label>
+                <input
+                    id="action-modal-input"
+                    class="h-9 w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 text-sm text-zinc-100 outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-400"
+                    type="text"
+                    autocomplete="off"
+                >
+                <p id="action-modal-error" class="mt-1.5 min-h-4 text-xs text-red-300" role="alert"></p>
+            </div>
+            <footer class="flex justify-end gap-2 border-t border-zinc-800 px-4 py-3">
+                <button
+                    id="cancel-action-modal"
+                    class="rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400"
+                    type="button"
+                >Cancel</button>
+                <button
+                    id="confirm-action-modal"
+                    class="rounded border px-3 py-2 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
+                    type="submit"
+                ></button>
+            </footer>
+        </form>
+    </dialog>
     <dialog
         id="success-modal"
         class="m-auto max-h-[min(42rem,calc(100dvh-2rem))] w-[min(36rem,calc(100%-2rem))] overflow-hidden rounded-lg border border-zinc-700 bg-zinc-950 p-0 text-zinc-200 shadow-2xl backdrop:bg-black/75"

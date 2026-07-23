@@ -103,6 +103,15 @@ const levelGrid = element<HTMLDivElement>("level-grid");
 const inputTokens = element<HTMLElement>("level-input");
 const outputTokens = element<HTMLElement>("level-output");
 const challengeResult = element<HTMLDivElement>("challenge-result");
+const actionModal = element<HTMLDialogElement>("action-modal");
+const actionModalForm = element<HTMLFormElement>("action-modal-form");
+const actionModalTitle = element<HTMLHeadingElement>("action-modal-title");
+const actionModalDescription = element<HTMLParagraphElement>("action-modal-description");
+const actionModalInputSection = element<HTMLDivElement>("action-modal-input-section");
+const actionModalInput = element<HTMLInputElement>("action-modal-input");
+const actionModalError = element<HTMLParagraphElement>("action-modal-error");
+const cancelActionModalButton = element<HTMLButtonElement>("cancel-action-modal");
+const confirmActionModalButton = element<HTMLButtonElement>("confirm-action-modal");
 const successModal = element<HTMLDialogElement>("success-modal");
 const successModalSummary = element<HTMLParagraphElement>("success-modal-summary");
 const successResults = element<HTMLDivElement>("success-results");
@@ -249,6 +258,7 @@ let lastRunFailures = new Map<number, LevelFailure>();
 let lastRunTestedThrough = -1;
 let railWidth = state.railWidth;
 let switchingCodeVersion = false;
+let actionModalSubmit: ((value: string) => string | undefined) | undefined;
 
 function saveState(): void {
     try {
@@ -345,63 +355,125 @@ function customVersionNameExists(name: string, exceptId?: string): boolean {
     );
 }
 
-function requestedCodeVersionName(message: string, defaultValue?: string): string | undefined {
-    const entered = window.prompt(message, defaultValue);
-    if (entered === null) return undefined;
-    const name = entered.trim();
-    if (name.length === 0) {
-        window.alert("Version names cannot be empty.");
+function closeActionModal(): void {
+    actionModal.close();
+    actionModalSubmit = undefined;
+}
+
+function openNameModal(
+    title: string,
+    description: string,
+    submitLabel: string,
+    defaultValue: string,
+    onSubmit: (name: string) => string | undefined,
+): void {
+    actionModalTitle.textContent = title;
+    actionModalDescription.textContent = description;
+    actionModalInputSection.hidden = false;
+    actionModalInput.value = defaultValue;
+    actionModalError.textContent = "";
+    confirmActionModalButton.textContent = submitLabel;
+    confirmActionModalButton.className =
+        "rounded border border-violet-400 bg-violet-400 px-3 py-2 text-xs font-semibold text-zinc-950 hover:border-violet-300 hover:bg-violet-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400";
+    actionModalSubmit = onSubmit;
+    actionModal.showModal();
+    actionModalInput.focus();
+    actionModalInput.select();
+}
+
+function openConfirmModal(
+    title: string,
+    description: string,
+    submitLabel: string,
+    onSubmit: () => void,
+): void {
+    actionModalTitle.textContent = title;
+    actionModalDescription.textContent = description;
+    actionModalInputSection.hidden = true;
+    actionModalError.textContent = "";
+    confirmActionModalButton.textContent = submitLabel;
+    confirmActionModalButton.className =
+        "rounded border border-red-500/60 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 hover:border-red-400 hover:bg-red-500/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
+    actionModalSubmit = () => {
+        onSubmit();
         return undefined;
-    }
-    return name;
+    };
+    actionModal.showModal();
+    confirmActionModalButton.focus();
 }
 
 function createCustomCodeVersion(): void {
-    const name = requestedCodeVersionName("Name this code version:");
-    if (name === undefined) return;
-    if (customVersionNameExists(name)) {
-        window.alert("A code version with that name already exists.");
-        return;
-    }
+    const copyingCheckpoint = selectedCodeVersion().kind === "checkpoint";
+    openNameModal(
+        copyingCheckpoint ? "Copy automatic checkpoint" : "Create code version",
+        copyingCheckpoint
+            ? "Create an editable version from this automatic checkpoint."
+            : "Create a new editable version from the current code.",
+        copyingCheckpoint ? "Copy" : "Create",
+        "",
+        (name) => {
+            if (name.length === 0) return "Version names cannot be empty.";
+            if (customVersionNameExists(name)) {
+                return "A code version with that name already exists.";
+            }
 
-    const version: CustomCodeVersion = {
-        id: createCodeVersionId(),
-        kind: "custom",
-        name,
-        code: editor.state.doc.toString(),
-    };
-    codeVersions.versions.push(version);
-    selectCodeVersion(version.id);
+            const version: CustomCodeVersion = {
+                id: createCodeVersionId(),
+                kind: "custom",
+                name,
+                code: editor.state.doc.toString(),
+            };
+            codeVersions.versions.push(version);
+            selectCodeVersion(version.id);
+            return undefined;
+        },
+    );
 }
 
 function renameCustomCodeVersion(): void {
     const version = selectedCodeVersion();
     if (version.kind !== "custom") return;
-    const name = requestedCodeVersionName("Rename this code version:", version.name);
-    if (name === undefined || name === version.name) return;
-    if (customVersionNameExists(name, version.id)) {
-        window.alert("A code version with that name already exists.");
-        return;
-    }
-    version.name = name;
-    saveCodeVersions();
-    render();
+    openNameModal(
+        "Rename code version",
+        "Choose a unique name for this editable version.",
+        "Rename",
+        version.name,
+        (name) => {
+            if (name.length === 0) return "Version names cannot be empty.";
+            if (name === version.name) return undefined;
+            if (customVersionNameExists(name, version.id)) {
+                return "A code version with that name already exists.";
+            }
+            version.name = name;
+            saveCodeVersions();
+            render();
+            return undefined;
+        },
+    );
 }
 
-function deleteCustomCodeVersion(): void {
+function deleteCodeVersion(): void {
     const version = selectedCodeVersion();
-    if (version.kind !== "custom") return;
     const customVersions = codeVersions.versions.filter(
         (candidate): candidate is CustomCodeVersion => candidate.kind === "custom",
     );
-    if (customVersions.length <= 1) return;
-    if (!window.confirm(`Delete "${version.name}"?`)) return;
+    if (version.kind === "custom" && customVersions.length <= 1) return;
 
-    const nextVersion = customVersions.find(candidate => candidate.id !== version.id);
-    if (!nextVersion) throw new Error("A replacement custom code version is missing.");
-    const index = codeVersions.versions.indexOf(version);
-    codeVersions.versions.splice(index, 1);
-    selectCodeVersion(nextVersion.id);
+    const label = version.kind === "custom"
+        ? `"${version.name}"`
+        : `"${checkpointLabel(version.passesThroughLevel)}"`;
+    openConfirmModal(
+        "Delete code version?",
+        `Permanently delete ${label}?`,
+        "Delete",
+        () => {
+            const nextVersion = customVersions.find(candidate => candidate.id !== version.id);
+            if (!nextVersion) throw new Error("A replacement custom code version is missing.");
+            const index = codeVersions.versions.indexOf(version);
+            codeVersions.versions.splice(index, 1);
+            selectCodeVersion(nextVersion.id);
+        },
+    );
 }
 
 function codeBlock(text: string, renderedOutput = false): HTMLPreElement {
@@ -584,10 +656,17 @@ function renderCodeVersions(): void {
     const controlsDisabled = running || refreshingPreviews;
     codeVersionSelect.disabled = controlsDisabled;
     addCodeVersionButton.disabled = controlsDisabled;
+    if (selectedVersion.kind === "checkpoint") {
+        addCodeVersionButton.textContent = "Copy";
+        addCodeVersionButton.setAttribute("aria-label", "Copy automatic checkpoint");
+    } else {
+        addCodeVersionButton.replaceChildren(createIconElement(Plus));
+        addCodeVersionButton.setAttribute("aria-label", "Create code version");
+    }
     renameCodeVersionButton.disabled =
         controlsDisabled || selectedVersion.kind !== "custom";
     deleteCodeVersionButton.disabled =
-        controlsDisabled || selectedVersion.kind !== "custom" || customVersionCount <= 1;
+        controlsDisabled || (selectedVersion.kind === "custom" && customVersionCount <= 1);
 }
 
 function render(): void {
@@ -632,16 +711,19 @@ function resetSolvedLevels(): void {
 
 function deleteAllProgress(): void {
     if (running || refreshingPreviews) return;
-    if (!window.confirm(
-        "Delete all progress, code versions, and automatic checkpoints? This cannot be undone.",
-    )) return;
-
-    try {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(CODE_VERSIONS_STORAGE_KEY);
-    } finally {
-        window.location.reload();
-    }
+    openConfirmModal(
+        "Delete all progress and code?",
+        "Permanently delete all level progress, code versions, and automatic checkpoints? This cannot be undone.",
+        "Delete everything",
+        () => {
+            try {
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(CODE_VERSIONS_STORAGE_KEY);
+            } finally {
+                window.location.reload();
+            }
+        },
+    );
 }
 
 function focusFailure(failure: LevelFailure): void {
@@ -909,7 +991,26 @@ async function refreshPreviews(): Promise<void> {
 codeVersionSelect.addEventListener("change", () => selectCodeVersion(codeVersionSelect.value));
 addCodeVersionButton.addEventListener("click", createCustomCodeVersion);
 renameCodeVersionButton.addEventListener("click", renameCustomCodeVersion);
-deleteCodeVersionButton.addEventListener("click", deleteCustomCodeVersion);
+deleteCodeVersionButton.addEventListener("click", deleteCodeVersion);
+actionModalForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!actionModalSubmit) return;
+    const error = actionModalSubmit(actionModalInput.value.trim());
+    if (error !== undefined) {
+        actionModalError.textContent = error;
+        actionModalInput.focus();
+        return;
+    }
+    closeActionModal();
+});
+cancelActionModalButton.addEventListener("click", closeActionModal);
+actionModal.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeActionModal();
+});
+actionModal.addEventListener("click", (event) => {
+    if (event.target === actionModal) closeActionModal();
+});
 previousButton.addEventListener("click", () => {
     levelNavigationExpanded = false;
     goToLevel(state.levelIndex - 1);
