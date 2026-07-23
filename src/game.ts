@@ -287,7 +287,7 @@ function render(): void {
     nextButton.disabled = running || state.levelIndex === state.highestLevelIndex;
     latestButton.disabled = running || state.levelIndex === state.highestLevelIndex;
     runButton.disabled = running || refreshingPreviews;
-    runButton.textContent = running ? "Running…" : "Run";
+    runButton.textContent = "Run";
     toggleLevelsButton.disabled = running;
     refreshPreviewsButton.disabled = running || refreshingPreviews;
     refreshPreviewsButton.textContent = refreshingPreviews
