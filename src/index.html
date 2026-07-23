@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>plgame</title>
     <style>
-        html, body, main, section, #editor {
+        html, body, main {
             height: 100%;
         }
 
@@ -14,18 +14,19 @@
         }
 
         main {
+            --task-rail-width: 26rem;
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: minmax(0, 1fr) 0.5rem minmax(18rem, var(--task-rail-width));
+            overflow: hidden;
         }
 
-        section {
+        section, aside, header, nav {
             box-sizing: border-box;
             min-width: 0;
-            padding: 1rem;
         }
 
-        section + section {
-            border-left: 1px solid;
+        button {
+            min-height: 2rem;
         }
 
         pre {
@@ -52,43 +53,233 @@
             color: red;
         }
 
+        #code-panel {
+            min-height: 0;
+            padding: 1rem;
+        }
+
+        #editor, .cm-editor {
+            height: 100%;
+        }
+
+        #workspace-divider {
+            border-left: 1px solid;
+            cursor: col-resize;
+            touch-action: none;
+        }
+
+        #workspace-divider:focus {
+            outline: 2px solid;
+            outline-offset: -2px;
+        }
+
+        #task-rail {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow-y: auto;
+            border-left: 1px solid;
+        }
+
+        #level-header {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto auto;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem;
+            background: Canvas;
+            border-bottom: 1px solid;
+        }
+
+        #level-number {
+            margin: 0;
+            text-align: center;
+            font-size: 1rem;
+        }
+
+        #challenge-panel, #results-panel {
+            padding: 1rem;
+        }
+
+        #challenge-panel {
+            border-bottom: 1px solid;
+        }
+
+        #challenge-panel > h2, #results-panel > h2 {
+            margin-top: 0;
+        }
+
+        #toggle-levels {
+            width: 100%;
+            text-align: left;
+        }
+
+        #level-navigation {
+            margin-block: 0.5rem 1rem;
+        }
+
         #level-grid {
             display: flex;
             flex-wrap: wrap;
             gap: 0.25rem;
         }
 
-        .cm-editor {
-            height: 100%;
+        #level-grid button[aria-current="step"] {
+            outline: 2px solid;
+        }
+
+        #level-grid button[data-level-state="failed"]::after {
+            content: " !";
+        }
+
+        #result-content > :last-child {
+            margin-bottom: 0;
+        }
+
+        #mobile-tabs {
+            display: none;
+        }
+
+        @media (max-width: 48rem) {
+            main {
+                display: grid;
+                grid-template: auto auto minmax(0, 1fr) / minmax(0, 1fr);
+            }
+
+            #task-rail {
+                display: contents;
+            }
+
+            #level-header {
+                position: static;
+                grid-row: 1;
+                grid-column: 1;
+            }
+
+            #mobile-tabs {
+                display: grid;
+                grid-row: 2;
+                grid-column: 1;
+                grid-template-columns: repeat(3, 1fr);
+                border-bottom: 1px solid;
+            }
+
+            #mobile-tabs button {
+                border-top: 0;
+            }
+
+            #mobile-tabs button[aria-selected="true"] {
+                font-weight: bold;
+            }
+
+            #workspace-divider {
+                display: none;
+            }
+
+            #code-panel, #challenge-panel, #results-panel {
+                display: none;
+                grid-row: 3;
+                grid-column: 1;
+                min-height: 0;
+                overflow-y: auto;
+            }
+
+            #code-panel {
+                padding: 0.75rem;
+            }
+
+            #challenge-panel {
+                border-bottom: 0;
+            }
+
+            main[data-mobile-tab="code"] #code-panel,
+            main[data-mobile-tab="challenge"] #challenge-panel,
+            main[data-mobile-tab="results"] #results-panel {
+                display: block;
+            }
         }
     </style>
 </head>
 <body>
-    <main>
-        <section aria-label="Code editor">
+    <main id="workspace" data-mobile-tab="code">
+        <section id="code-panel" role="tabpanel" aria-labelledby="code-tab">
             <div id="editor"></div>
         </section>
-        <section aria-label="Current level">
-            <nav aria-label="Level navigation">
-                <button id="previous-level" type="button">Back</button>
-                <button id="show-levels" type="button">All levels</button>
-                <button id="next-level" type="button">Forward</button>
-            </nav>
-            <div id="failed-levels"></div>
-            <div id="level-detail">
+
+        <div
+            id="workspace-divider"
+            role="separator"
+            aria-label="Resize code editor and task panel"
+            aria-orientation="vertical"
+            aria-valuemin="288"
+            tabindex="0"
+        ></div>
+
+        <aside id="task-rail" aria-label="Current level">
+            <header id="level-header">
+                <button id="previous-level" type="button" aria-label="Previous level">Back</button>
                 <h1 id="level-number"></h1>
-                <h2>Input</h2>
+                <button id="next-level" type="button" aria-label="Next unlocked level">Forward</button>
+                <button id="run" type="button" title="Run (Ctrl+Enter or Command+Enter)">Run</button>
+            </header>
+
+            <nav id="mobile-tabs" role="tablist" aria-label="Game workspace">
+                <button
+                    id="challenge-tab"
+                    type="button"
+                    role="tab"
+                    aria-controls="challenge-panel"
+                    aria-selected="false"
+                    tabindex="-1"
+                    data-tab="challenge"
+                >Challenge</button>
+                <button
+                    id="code-tab"
+                    type="button"
+                    role="tab"
+                    aria-controls="code-panel"
+                    aria-selected="true"
+                    data-tab="code"
+                >Code</button>
+                <button
+                    id="results-tab"
+                    type="button"
+                    role="tab"
+                    aria-controls="results-panel"
+                    aria-selected="false"
+                    tabindex="-1"
+                    data-tab="results"
+                >Results</button>
+            </nav>
+
+            <section id="challenge-panel" role="tabpanel" aria-labelledby="challenge-tab">
+                <h2>Challenge</h2>
+                <button
+                    id="toggle-levels"
+                    type="button"
+                    aria-controls="level-navigation"
+                    aria-expanded="false"
+                >Browse unlocked levels</button>
+                <nav id="level-navigation" aria-label="Unlocked levels" hidden>
+                    <div id="level-grid"></div>
+                </nav>
+
+                <h3>Input</h3>
                 <pre><code id="level-input"></code></pre>
-                <h2>Expected output</h2>
+                <h3>Expected output</h3>
                 <pre><code id="level-output"></code></pre>
-                <p><button id="run" type="button">Run</button></p>
-                <div id="status" role="status" aria-live="polite"></div>
-            </div>
-            <div id="level-picker" hidden>
-                <h1>Levels</h1>
-                <div id="level-grid"></div>
-            </div>
-        </section>
+            </section>
+
+            <section id="results-panel" role="tabpanel" aria-labelledby="results-tab">
+                <h2>Results</h2>
+                <div id="status" role="status" aria-live="polite" aria-atomic="true">
+                    <div id="result-content">Ready to run.</div>
+                </div>
+            </section>
+        </aside>
     </main>
     <script type="module" src="./game.ts"></script>
 </body>
