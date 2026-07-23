@@ -13,6 +13,13 @@
         class="group/workspace grid h-dvh min-h-0 grid-cols-1 grid-rows-[2.5rem_2.25rem_minmax(0,1fr)] overflow-hidden bg-zinc-950 md:grid-cols-[minmax(0,1fr)_0.375rem_minmax(18rem,var(--task-rail-width))] md:grid-rows-1"
         data-mobile-tab="code"
     >
+        <script>
+            const elem = document.getElementById("id");
+            try {
+                const value = JSON.parse(localStorage.getItem("plgame-state")).railWidth;
+                workspace.style.setProperty("--task-rail-width", `${value}px`);
+            } catch (e) {}
+        </script>
         <section
             id="code-panel"
             class="row-start-3 hidden min-h-0 min-w-0 flex-col gap-1.5 overflow-hidden p-2 max-md:group-data-[browsing=true]/workspace:!hidden group-data-[mobile-tab=code]/workspace:flex md:col-start-1 md:row-start-1 md:flex md:p-2.5 [&_.cm-activeLine]:!bg-zinc-800/70 [&_.cm-activeLineGutter]:!bg-zinc-800/70 [&_.cm-content]:caret-violet-300 [&_.cm-editor]:h-full [&_.cm-editor]:!bg-zinc-950 [&_.cm-editor]:font-mono [&_.cm-editor]:!text-zinc-200 [&_.cm-editor]:[color-scheme:dark] [&_.cm-editor.cm-focused]:outline-none [&_.cm-gutter]:!bg-zinc-900 [&_.cm-gutters]:!border-r [&_.cm-gutters]:!border-zinc-800 [&_.cm-gutters]:!bg-zinc-900 [&_.cm-gutters]:!text-zinc-600 [&_.cm-scroller]:font-mono [&_.cm-scroller]:[color-scheme:dark] [&_.cm-scroller]:[scrollbar-color:#52525b_#18181b]"
