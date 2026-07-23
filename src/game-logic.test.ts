@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { DEFAULT_CODE, parseState, runProgression } from "./game-logic.ts";
+import { parseState, runProgression } from "./game-logic.ts";
 import type { Level, Token } from "./levels.ts";
 
 describe("user rendering", () => {
@@ -15,18 +15,5 @@ describe("user rendering", () => {
         if (result.kind !== "failed") throw new Error("Expected the level to fail.");
         expect(result.failure.renderedExpected).toBe("<2>");
         expect(result.failure.renderedActual).toBe("<3>");
-    });
-
-    test("adds the default renderer to older saved code", () => {
-        const state = parseState(JSON.stringify({
-            version: 3,
-            code: "function execute(tokens) { return tokens; }",
-            levelIndex: 0,
-            highestLevelIndex: 0,
-        }), 1);
-
-        expect(state.code).toContain("function render(tokens)");
-        expect(state.code).toContain("function execute(tokens)");
-        expect(DEFAULT_CODE).toContain("return tokens.join(\" \");");
     });
 });

@@ -10,9 +10,9 @@ function execute(tokens) {
 }`;
 
 export type GameState = {
-    code: string,
     levelIndex: number,
     highestLevelIndex: number,
+    railWidth: number,
 };
 
 export type LevelFailure = {
@@ -41,13 +41,14 @@ type Runner = (
     valuesToRender: number[][],
 ) => Promise<CodeExecutionResult[] | {executions: CodeExecutionResult[], renderings: string[]}>;
 
-const STORAGE_VERSION = 4;
+const STORAGE_VERSION = 5;
+const DEFAULT_RAIL_WIDTH = 416;
 
 export function defaultState(): GameState {
     return {
-        code: DEFAULT_CODE,
         levelIndex: 0,
         highestLevelIndex: 0,
+        railWidth: DEFAULT_RAIL_WIDTH,
     };
 }
 
@@ -227,20 +228,16 @@ export function parseState(serialized: string | null, levelCount: number): GameS
 
         const saved = value as Record<string, unknown>;
         if (
-            (saved.version !== 1
-                && saved.version !== 2
-                && saved.version !== 3
-                && saved.version !== STORAGE_VERSION)
-            || typeof saved.code !== "string"
+            saved.version !== STORAGE_VERSION
             || !Number.isInteger(saved.levelIndex)
             || typeof saved.levelIndex !== "number"
             || saved.levelIndex < 0
             || saved.levelIndex >= levelCount
+            || typeof saved.railWidth !== "number"
+            || !Number.isFinite(saved.railWidth)
         ) return defaultState();
 
-        const highestLevelIndex = saved.version === 1
-            ? saved.levelIndex
-            : saved.highestLevelIndex;
+        const highestLevelIndex = saved.highestLevelIndex;
         if (
             typeof highestLevelIndex !== "number"
             || !Number.isInteger(highestLevelIndex)
@@ -249,15 +246,9 @@ export function parseState(serialized: string | null, levelCount: number): GameS
         ) return defaultState();
 
         return {
-            code: saved.version === STORAGE_VERSION
-                ? saved.code
-                : `function render(tokens) {
-    return tokens.join(" ");
-}
-
-${saved.code}`,
             levelIndex: saved.levelIndex,
             highestLevelIndex,
+            railWidth: saved.railWidth,
         };
     } catch {
         return defaultState();

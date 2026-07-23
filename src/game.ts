@@ -5,6 +5,7 @@ import { basicSetup, EditorView } from "codemirror";
 import { renderDiff } from "./diff-renderer.ts";
 import { runCode } from "./executor.ts";
 import {
+    DEFAULT_CODE,
     type LevelFailure,
     parseState,
     type RenderedLevel,
@@ -14,7 +15,7 @@ import {
 import { levels } from "./levels.ts";
 
 const STORAGE_KEY = "plgame-state";
-const LAYOUT_STORAGE_KEY = "plgame-layout";
+const CODE_STORAGE_KEY = "plgame-code";
 const MIN_RAIL_WIDTH = 288;
 const MIN_EDITOR_WIDTH = 360;
 const DIVIDER_WIDTH = 8;
@@ -62,20 +63,12 @@ const state = (() => {
     }
 })();
 
-function savedRailWidth(): number {
+function savedCode(): string {
     try {
-        const saved: unknown = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY) ?? "null");
-        if (
-            typeof saved === "object"
-            && saved !== null
-            && "railWidth" in saved
-            && typeof saved.railWidth === "number"
-            && Number.isFinite(saved.railWidth)
-        ) return saved.railWidth;
+        return localStorage.getItem(CODE_STORAGE_KEY) ?? DEFAULT_CODE;
     } catch {
-        // Invalid layout preferences use the default width.
+        return DEFAULT_CODE;
     }
-    return 416;
 }
 
 let running = false;
@@ -87,9 +80,9 @@ let renderedLevels: RenderedLevel[] = levels.map(level => ({
 }));
 let lastRunFailures = new Map<number, LevelFailure>();
 let lastRunTestedThrough = -1;
-let railWidth = savedRailWidth();
+let railWidth = state.railWidth;
 
-function saveGame(): void {
+function saveState(): void {
     try {
         localStorage.setItem(STORAGE_KEY, serializeState(state));
     } catch {
@@ -97,9 +90,9 @@ function saveGame(): void {
     }
 }
 
-function saveLayout(): void {
+function saveCode(code: string): void {
     try {
-        localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify({railWidth}));
+        localStorage.setItem(CODE_STORAGE_KEY, code);
     } catch {
         // Storage can be disabled without preventing the game from working.
     }
@@ -114,21 +107,24 @@ function setRailWidth(nextWidth: number, persist: boolean): void {
     workspace.style.setProperty("--task-rail-width", `${railWidth}px`);
     divider.setAttribute("aria-valuemax", String(maximumRailWidth()));
     divider.setAttribute("aria-valuenow", String(railWidth));
-    if (persist) saveLayout();
+    if (persist) {
+        state.railWidth = railWidth;
+        saveState();
+    }
 }
 
 setRailWidth(railWidth, false);
+state.railWidth = railWidth;
 
 const editor = new EditorView({
-    doc: state.code,
+    doc: savedCode(),
     extensions: [
         basicSetup,
         javascript(),
         keymap.of([indentWithTab]),
         EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
-            state.code = update.state.doc.toString();
-            saveGame();
+            saveCode(update.state.doc.toString());
         }),
     ],
     parent: editorParent,
@@ -304,7 +300,7 @@ function focusFailure(failure: LevelFailure): void {
 function goToLevel(levelIndex: number): void {
     if (levelIndex < 0 || levelIndex > state.highestLevelIndex) return;
     state.levelIndex = levelIndex;
-    saveGame();
+    saveState();
     render();
 }
 
@@ -330,7 +326,7 @@ async function runGame(): Promise<void> {
     lastRunTestedThrough = state.highestLevelIndex;
     running = false;
 
-    saveGame();
+    saveState();
     activeMobileTab = "results";
     render();
 }
@@ -378,7 +374,8 @@ divider.addEventListener("pointermove", (event) => {
 divider.addEventListener("pointerup", (event) => {
     if (!divider.hasPointerCapture(event.pointerId)) return;
     divider.releasePointerCapture(event.pointerId);
-    saveLayout();
+    state.railWidth = railWidth;
+    saveState();
 });
 divider.addEventListener("keydown", (event) => {
     if (event.key === "ArrowLeft") setRailWidth(railWidth + RAIL_RESIZE_STEP, true);
