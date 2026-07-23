@@ -31,6 +31,7 @@ import { levels } from "./levels.ts";
 const STORAGE_KEY = "plgame-state";
 const CODE_VERSIONS_STORAGE_KEY = "plgame-code-versions";
 const CODE_VERSIONS_STORAGE_VERSION = 1;
+const DEFAULT_CODE_VERSION_ID = "default-code";
 const MIN_RAIL_WIDTH = 288;
 const MIN_EDITOR_WIDTH = 360;
 const DIVIDER_WIDTH = 8;
@@ -43,6 +44,7 @@ type CustomCodeVersion = {
     kind: "custom",
     name: string,
     code: string,
+    builtIn?: false,
 };
 
 type CheckpointCodeVersion = {
@@ -50,6 +52,7 @@ type CheckpointCodeVersion = {
     kind: "checkpoint",
     passesThroughLevel: number,
     code: string,
+    builtIn?: true,
 };
 
 type CodeVersion = CustomCodeVersion | CheckpointCodeVersion;
@@ -134,6 +137,16 @@ function createCodeVersionId(): string {
     return crypto.randomUUID();
 }
 
+function defaultCodeCheckpoint(): CheckpointCodeVersion {
+    return {
+        id: DEFAULT_CODE_VERSION_ID,
+        kind: "checkpoint",
+        passesThroughLevel: 0,
+        code: DEFAULT_CODE,
+        builtIn: true,
+    };
+}
+
 function defaultCodeVersions(): CodeVersionsState {
     const id = createCodeVersionId();
     return {
@@ -144,7 +157,7 @@ function defaultCodeVersions(): CodeVersionsState {
             kind: "custom",
             name: "My code",
             code: DEFAULT_CODE,
-        }],
+        }, defaultCodeCheckpoint()],
     };
 }
 
@@ -173,6 +186,7 @@ function parseCodeVersions(serialized: string | null): CodeVersionsState {
             if (
                 typeof version.id !== "string"
                 || version.id.length === 0
+                || version.id === DEFAULT_CODE_VERSION_ID
                 || ids.has(version.id)
                 || typeof version.code !== "string"
             ) return defaultCodeVersions();
@@ -217,7 +231,7 @@ function parseCodeVersions(serialized: string | null): CodeVersionsState {
         return {
             version: CODE_VERSIONS_STORAGE_VERSION,
             selectedVersionId: saved.selectedVersionId,
-            versions,
+            versions: [...versions, defaultCodeCheckpoint()],
         };
     } catch {
         return defaultCodeVersions();
@@ -273,7 +287,16 @@ function saveState(): void {
 
 function saveCodeVersions(): void {
     try {
-        localStorage.setItem(CODE_VERSIONS_STORAGE_KEY, JSON.stringify(codeVersions));
+        const persistedVersions = codeVersions.versions.filter(version => !version.builtIn);
+        const selectedVersionId = selectedCodeVersion().builtIn
+            ? persistedVersions.find(version => version.kind === "custom")?.id
+            : codeVersions.selectedVersionId;
+        if (selectedVersionId === undefined) return;
+        localStorage.setItem(CODE_VERSIONS_STORAGE_KEY, JSON.stringify({
+            ...codeVersions,
+            selectedVersionId,
+            versions: persistedVersions,
+        }));
     } catch {
         // Storage can be disabled without preventing the game from working.
     }
@@ -330,6 +353,7 @@ const editor = new EditorView({
 });
 
 function checkpointLabel(passesThroughLevel: number): string {
+    if (passesThroughLevel === 0) return "Default code";
     return passesThroughLevel === 1
         ? "Passes level 1"
         : `Passes levels 1-${passesThroughLevel}`;
@@ -716,7 +740,9 @@ function renderCodeVersions(): void {
     renameCodeVersionButton.disabled =
         controlsDisabled || selectedVersion.kind !== "custom";
     deleteCodeVersionButton.disabled =
-        controlsDisabled || (selectedVersion.kind === "custom" && customVersionCount <= 1);
+        controlsDisabled
+        || selectedVersion.builtIn
+        || (selectedVersion.kind === "custom" && customVersionCount <= 1);
 }
 
 function render(): void {
