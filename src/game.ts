@@ -94,17 +94,13 @@ function renderFailure(levelIndex: number, failure: LevelFailure): void {
     const actual = failure.renderedActual ?? failure.actual?.join(" ") ?? "";
     const summary = document.createElement("p");
     summary.textContent = `Level ${levelIndex + 1} failed.`;
-    const expectedLabel = document.createElement("strong");
-    expectedLabel.textContent = "Expected";
     const actualLabel = document.createElement("strong");
-    actualLabel.textContent = "Received";
+    actualLabel.textContent = "Your code returned";
     const diffLabel = document.createElement("strong");
     diffLabel.textContent = "Diff";
     const diff = renderDiff(document, expected, actual);
     status.replaceChildren(
         summary,
-        expectedLabel,
-        codeBlock(expected),
         actualLabel,
         codeBlock(actual),
         diffLabel,
