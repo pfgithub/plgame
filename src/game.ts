@@ -2,7 +2,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { indentWithTab } from "@codemirror/commands";
 import { keymap } from "@codemirror/view";
 import { basicSetup, EditorView } from "codemirror";
-import DiffMatchPatch from "diff-match-patch";
+import { renderDiff } from "./diff-renderer.ts";
 import { runCode } from "./executor.ts";
 import {
     type LevelFailure,
@@ -49,8 +49,6 @@ let renderedLevels: RenderedLevel[] = levels.map(level => ({
     input: level.input.join(" "),
     expected: level.output.join(" "),
 }));
-const diffEngine = new DiffMatchPatch();
-
 function save(): void {
     try {
         localStorage.setItem(STORAGE_KEY, serializeState(state));
@@ -102,22 +100,7 @@ function renderFailure(levelIndex: number, failure: LevelFailure): void {
     actualLabel.textContent = "Received";
     const diffLabel = document.createElement("strong");
     diffLabel.textContent = "Diff";
-    const diff = document.createElement("code");
-    const changes = diffEngine.diff_main(expected, actual);
-    diffEngine.diff_cleanupSemantic(changes);
-    for (const [operation, text] of changes) {
-        const part = document.createElement(
-            operation === DiffMatchPatch.DIFF_DELETE
-                ? "del"
-                : operation === DiffMatchPatch.DIFF_INSERT
-                    ? "ins"
-                    : "span",
-        );
-        part.textContent = text;
-        diff.append(part);
-    }
-    const diffPre = document.createElement("pre");
-    diffPre.append(diff);
+    const diff = renderDiff(document, expected, actual);
     status.replaceChildren(
         summary,
         expectedLabel,
@@ -125,7 +108,7 @@ function renderFailure(levelIndex: number, failure: LevelFailure): void {
         actualLabel,
         codeBlock(actual),
         diffLabel,
-        diffPre,
+        diff,
     );
 }
 
