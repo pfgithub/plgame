@@ -37,8 +37,7 @@ const nextButton = element<HTMLButtonElement>("next-level");
 const latestButton = element<HTMLButtonElement>("latest-level");
 const runButton = element<HTMLButtonElement>("run");
 const refreshPreviewsButton = element<HTMLButtonElement>("refresh-previews");
-const levelNumber = element<HTMLHeadingElement>("level-number");
-const toggleLevelsButton = element<HTMLButtonElement>("toggle-levels");
+const levelButton = element<HTMLButtonElement>("level-number");
 const levelNavigation = element<HTMLElement>("level-navigation");
 const levelGrid = element<HTMLDivElement>("level-grid");
 const inputTokens = element<HTMLElement>("level-input");
@@ -272,9 +271,9 @@ function renderLevel(): void {
     const rendered = renderedLevels[state.levelIndex];
 
     const itemState = levelState(state.levelIndex);
-    levelNumber.textContent = `Level ${state.levelIndex + 1}`;
-    if (itemState === "unlocked") delete levelNumber.dataset.levelState;
-    else levelNumber.dataset.levelState = itemState;
+    levelButton.textContent = `Level ${state.levelIndex + 1}`;
+    if (itemState === "unlocked") delete levelButton.dataset.levelState;
+    else levelButton.dataset.levelState = itemState;
     const unavailable = previewError === undefined
         ? "Rendering preview…"
         : `Preview unavailable: ${previewError}`;
@@ -288,13 +287,11 @@ function render(): void {
     latestButton.disabled = running || state.levelIndex === state.highestLevelIndex;
     runButton.disabled = running || refreshingPreviews;
     runButton.textContent = "Run";
-    toggleLevelsButton.disabled = running;
+    levelButton.disabled = running;
     refreshPreviewsButton.disabled = running || refreshingPreviews;
-    refreshPreviewsButton.textContent = refreshingPreviews
-        ? "Refreshing…"
-        : "Refresh previews";
-    toggleLevelsButton.setAttribute("aria-expanded", String(levelNavigationExpanded));
-    toggleLevelsButton.setAttribute(
+    refreshPreviewsButton.textContent = "Refresh previews";
+    levelButton.setAttribute("aria-expanded", String(levelNavigationExpanded));
+    levelButton.setAttribute(
         "aria-label",
         levelNavigationExpanded ? "Close unlocked levels" : "Browse unlocked levels",
     );
@@ -391,7 +388,7 @@ nextButton.addEventListener("click", () => goToLevel(state.levelIndex + 1));
 latestButton.addEventListener("click", () => goToLevel(state.highestLevelIndex));
 runButton.addEventListener("click", () => void runGame());
 refreshPreviewsButton.addEventListener("click", () => void refreshPreviews());
-toggleLevelsButton.addEventListener("click", () => {
+levelButton.addEventListener("click", () => {
     levelNavigationExpanded = !levelNavigationExpanded;
     render();
 });
