@@ -12,8 +12,8 @@ plgame is a browser-based programming puzzle about learning an unknown language 
 
 ## File summary
 
-- `src/index.html`: Responsive single-page game shell, layout styles, controls, challenge/results panels, and entry script.
-- `src/game.ts`: Browser UI controller for CodeMirror, saved state, level navigation, previews, execution, results, and responsive interactions.
+- `src/index.html`: Responsive single-page game shell, layout styles, controls, challenge/results/settings panels, and entry script.
+- `src/game.ts`: Browser UI controller for CodeMirror, saved state and reset actions, level navigation, previews, execution, results, and responsive interactions.
 - `src/game-logic.ts`: UI-independent progression, failure reporting, default player code, and persisted-state serialization/parsing.
 - `src/executor.ts`: Sandboxed iframe and Web Worker runner that validates, times out, executes, and renders player code. Calling runCode() is slow, always batch multiple calls into one call instead, modifying the runCode implementaion if necessary.
 - `src/diff-renderer.ts`: Builds a semantic two-line HTML diff between expected and actual rendered output.

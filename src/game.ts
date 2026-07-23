@@ -14,6 +14,7 @@ import {
     createIcons,
     Info,
     Plus,
+    Settings,
 } from "lucide";
 import { renderDiff } from "./diff-renderer.ts";
 import { renderCode, runCode } from "./executor.ts";
@@ -67,6 +68,7 @@ createIcons({
         ChevronDown,
         Info,
         Plus,
+        Settings,
     },
 });
 
@@ -91,6 +93,12 @@ const refreshPreviewsButton = element<HTMLButtonElement>("refresh-previews");
 const levelButton = element<HTMLButtonElement>("level-number");
 const levelButtonLabel = element<HTMLSpanElement>("level-number-label");
 const levelNavigation = element<HTMLElement>("level-navigation");
+const levelSelectionPanel = element<HTMLElement>("level-selection-panel");
+const settingsPanel = element<HTMLElement>("settings-panel");
+const openSettingsButton = element<HTMLButtonElement>("open-settings");
+const closeSettingsButton = element<HTMLButtonElement>("close-settings");
+const resetSolvedLevelsButton = element<HTMLButtonElement>("reset-solved-levels");
+const deleteAllProgressButton = element<HTMLButtonElement>("delete-all-progress");
 const levelGrid = element<HTMLDivElement>("level-grid");
 const inputTokens = element<HTMLElement>("level-input");
 const outputTokens = element<HTMLElement>("level-output");
@@ -233,6 +241,7 @@ let running = false;
 let refreshingPreviews = false;
 let activeMobileTab: MobileTab = "code";
 let levelNavigationExpanded = false;
+let settingsExpanded = false;
 const renderedLevels: RenderedLevel[] = [];
 let previewError: string | undefined;
 let runError: string | undefined;
@@ -597,11 +606,42 @@ function render(): void {
     );
     workspace.dataset.browsing = String(levelNavigationExpanded);
     levelNavigation.hidden = !levelNavigationExpanded;
+    levelSelectionPanel.hidden = settingsExpanded;
+    settingsPanel.hidden = !settingsExpanded;
+    resetSolvedLevelsButton.disabled =
+        running || refreshingPreviews || state.highestLevelIndex === 0;
+    deleteAllProgressButton.disabled = running || refreshingPreviews;
     renderCodeVersions();
     renderLevel();
     renderLevelGrid();
     renderChallengeResult();
     setMobileTab(activeMobileTab);
+}
+
+function resetSolvedLevels(): void {
+    if (running || refreshingPreviews || state.highestLevelIndex === 0) return;
+
+    state.highestLevelIndex = 0;
+    state.levelIndex = 0;
+    lastRunFailures = new Map();
+    lastRunTestedThrough = -1;
+    runError = undefined;
+    saveState();
+    render();
+}
+
+function deleteAllProgress(): void {
+    if (running || refreshingPreviews) return;
+    if (!window.confirm(
+        "Delete all progress, code versions, and automatic checkpoints? This cannot be undone.",
+    )) return;
+
+    try {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(CODE_VERSIONS_STORAGE_KEY);
+    } finally {
+        window.location.reload();
+    }
 }
 
 function focusFailure(failure: LevelFailure): void {
@@ -890,8 +930,19 @@ successModal.addEventListener("click", (event) => {
 });
 levelButton.addEventListener("click", () => {
     levelNavigationExpanded = !levelNavigationExpanded;
+    if (!levelNavigationExpanded) settingsExpanded = false;
     render();
 });
+openSettingsButton.addEventListener("click", () => {
+    settingsExpanded = true;
+    render();
+});
+closeSettingsButton.addEventListener("click", () => {
+    settingsExpanded = false;
+    render();
+});
+resetSolvedLevelsButton.addEventListener("click", resetSolvedLevels);
+deleteAllProgressButton.addEventListener("click", deleteAllProgress);
 
 for (const button of mobileTabButtons) {
     button.addEventListener("click", () => setMobileTab(button.dataset.tab as MobileTab));
