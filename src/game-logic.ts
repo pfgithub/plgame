@@ -8,7 +8,13 @@ export type Token = number & {__is_token: true};
 export type Level = {input: Token[], output: Token[]};
 export type PreviewRenderMode = "player" | "json";
 
-export const DEFAULT_CODE = `
+export const DEFAULT_CODE = `//        .__
+// ______ |  |    _________    _____   ____
+// \\____ \\|  |   / ___\\__  \\  /     \\_/ __ \\
+// |  |_> >  |__/ /_/  > __ \\|  Y Y  \\  ___/
+// |   __/|____/\\___  (____  /__|_|  /\\___  >
+// |__|        /_____/     \\/      \\/     \\/
+
 // Write code in execute() to solve the level
 function execute(tokens) {
     return tokens;
@@ -18,7 +24,8 @@ function execute(tokens) {
 // You may update render() to make the levels easier to understand
 function render(tokens) {
     return JSON.stringify(tokens);
-}`;
+}
+`;
 
 export type GameState = {
     levelIndex: number,

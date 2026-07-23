@@ -26,7 +26,7 @@ bun generate-levels
 bun src/devserver
 
 # build static site
-bun build
+bun run build
 ```
 
-Levels & README are made by me. Everything else is prompted.
+Levels & README are made by me. Nearly everything else is prompted.
