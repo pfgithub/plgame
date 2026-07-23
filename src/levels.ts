@@ -1,10 +1,64 @@
-export type Token = string & {__is_token: true};
+export type Token = number & {__is_token: true};
+
+const indexToToken = [
+    // some controls
+    "\n",
+    "\t",
+    "#",
+    "[",
+    "]",
+    ":",
+
+    // var & other
+    "getvar",
+    "setvar",
+    "kill",
+    "index",
+    "incr",
+    "reserved1",
+
+    // some math fns
+    "add",
+    "mul",
+    "sub",
+    "div",
+    "pow",
+    "nrt",
+
+    // numbers
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+
+    "list_length",
+    "list_push",
+    "true",
+    "false",
+    "reserved2",
+    "reserved3",
+
+    // some errors
+    "ERR_no_exit",
+    "ERR_no_stack",
+];
+const tokenToIndex = new Map<string, Token>();
+for (const [i, item] of indexToToken.entries()) {
+    tokenToIndex.set(item, i as Token);
+}
+
+function toToken(raw: string): Token {
+    if (!tokenToIndex.has(raw)) throw new Error(`bad token: ${raw}`);
+    return tokenToIndex.get(raw)!;
+}
 function tokenize(input: string): Token[] {
     const output: Token[] = [];
     let uncommitted: string = "";
     const commit = () => {
         if (uncommitted !== "") {
-            output.push(uncommitted as Token);
+            output.push(toToken(uncommitted));
             uncommitted = "";
         }
     };
@@ -15,7 +69,7 @@ function tokenize(input: string): Token[] {
             uncommitted += char;
         } else {
             commit();
-            output.push(char as Token);
+            output.push(toToken(char));
         }
     }
     commit();
@@ -69,19 +123,27 @@ export const levels: Level[] = [
     level("incr incr 3#", "5#"),
     level("incr 4#", "5#"),
     level("incr incr incr incr incr 0#", "5#"),
+    // newline
+    level("1234# 05#", "1234# 05#"),
+    level("1234#\n05#", "05# 1234#"),
+    level("1234#\n05# 203#", "05# 203# 1234#"),
+    level("1234#\n05#\n203#", "203# 05# 1234#"),
+    level("1234# 05#\n203#", "203# 1234# 05#"),
+    // incr newline
+    level("1#\nincr", "2#"),
     // variables
     level("setvar 0# 5142#", ""),
     level("getvar 0# setvar 0# 5142#", "5142#"),
     level("getvar 0# setvar 0# 1234# setvar 0# 4321#", "1234#"),
-    level("getvar 0# setvar 0# 2353# setvar 0# 1433# setvar 0# 3854#", "2353#"),
-    level("getvar 0# setvar 0# 2353# setvar 1# 1433# setvar 2# 3854#", "2353#"),
-    level("getvar 1# setvar 0# 2353# setvar 1# 1433# setvar 2# 3854#", "1433#"),
-    level("getvar 2# setvar 0# 2353# setvar 1# 1433# setvar 2# 3854#", "3854#"),
-    level("setvar 0# 2353# setvar 1# 1433# setvar 2# 3854#", ""),
-    level("getvar 0# getvar 1# getvar 2# setvar 0# 2353# setvar 1# 1433# setvar 2# 3854#", "2353# 1433# 3854#"),
-    level("getvar 2# getvar 1# getvar 0# setvar 0# 2353# setvar 1# 1433# setvar 2# 3854#", "3854# 1433# 2353#"),
+    level("getvar 0# setvar 0# 2353# setvar 0# 1433# setvar 0# 3054#", "2353#"),
+    level("getvar 0# setvar 0# 2353# setvar 1# 1433# setvar 2# 3054#", "2353#"),
+    level("getvar 1# setvar 0# 2353# setvar 1# 1433# setvar 2# 3054#", "1433#"),
+    level("getvar 2# setvar 0# 2353# setvar 1# 1433# setvar 2# 3054#", "3054#"),
+    level("setvar 0# 2353# setvar 1# 1433# setvar 2# 3054#", ""),
+    level("getvar 0# getvar 1# getvar 2# setvar 0# 2353# setvar 1# 1433# setvar 2# 3054#", "2353# 1433# 3054#"),
+    level("getvar 2# getvar 1# getvar 0# setvar 0# 2353# setvar 1# 1433# setvar 2# 3054#", "3054# 1433# 2353#"),
     level("setvar 0# 5424# getvar 0# setvar 0# 0432#", "0432#"),
-    // newline (maybe delay this?)
+    // variables newline
     level("setvar 0# 5424#\ngetvar 0#\nsetvar 0# 0432#", "5424#"),
 
     // copy input to output
@@ -255,7 +317,6 @@ export const levels: Level[] = [
     level("5 incr 5#", "501#"),
     level("#", "0#"),
     level("4", "ERR_no_stack"),
-    level("1:2", "ERR_no_stack"),
 
     /*
     ideas for the future:
@@ -350,35 +411,51 @@ function execute(level: Token[]): Token[] {
         "true": () => put(true),
         "false": () => put(false),
         "setvar": () => scope.set(getnum(), get()),
-        "getvar": () => scope.get(getnum()) ?? error("ERR_no_var"),
+        "getvar": () => put(scope.get(getnum()) ?? error("ERR_no_var")),
     };
     try {
-        for (const token of [...level].reverse()) {
-            const xc = executors[token];
-            if (!xc) error(`execution not implemented for token: ${token}`);
-            xc();
+        // 1. split by line
+        const current: Token[] = [];
+        const executeLine = () => {
+            for (const index of [...current].reverse()) {
+                const token = indexToToken[index]!;
+                const xc = executors[token];
+                if (!xc) error(`execution not implemented for token: ${JSON.stringify(token)}`);
+                xc();
+            }
+            current.splice(0, current.length);
+        };
+        for (let i = 0; i < level.length; i++) {
+            const index = level[i]!;
+            const token = indexToToken[index]!;
+            if (token === "\n") {
+                executeLine();
+            } else {
+                current.push(index);
+            }
         }
+        executeLine();
 
         // now, convert stack to outcome
         const result: Token[] = [];
         const putresult = (stack: StackValue[]) => {
             for (const item of [...stack].reverse()) {
                 if (typeof item === "number") {
-                    for (const ent of [...item.toString(6)].reverse()) result.push(ent as Token);
-                    result.push("#" as Token);
+                    for (const ent of [...item.toString(6)].reverse()) result.push(toToken(ent));
+                    result.push(toToken("#"));
                 } else if (typeof item === "boolean") {
-                    result.push(String(item) as Token);
+                    result.push(toToken(`${item}`));
                 } else if (Array.isArray(item)) {
-                    result.push("[" as Token);
+                    result.push(toToken("["));
                     putresult(item);
-                    result.push("]" as Token);
+                    result.push(toToken("]"));
                 } else throw new Error(`execution todo support resulting stack value: ${typeof item}`);
             }
         };
         putresult(stack);
         return result;
     } catch (e) {
-        return [(e as Error).message as Token];
+        return [toToken((e as Error).message)];
     }
 }
 
@@ -386,7 +463,7 @@ function execute(level: Token[]): Token[] {
 for (const [i, level] of levels.entries()) {
     const output = execute(level.input);
     if (JSON.stringify(output) !== JSON.stringify(level.output)) {
-        console.error(`Error: Level ${i}: ${JSON.stringify(level.raw)}/${JSON.stringify(level.input)}\n  Expected ${JSON.stringify(level.output)}\n  Received ${JSON.stringify(output)}`);
+        console.error(`Error: Level ${i}: ${JSON.stringify(level.raw)}\n  Expected ${JSON.stringify(level.output.map(m => indexToToken[m]!))}\n  Received ${JSON.stringify(output.map(m => indexToToken[m]!))}`);
     }
 }
 
