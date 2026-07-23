@@ -133,6 +133,7 @@ const challengeRunStatus = element<HTMLDivElement>("challenge-run-status");
 const challengeRunStatusLabel = element<HTMLElement>("challenge-run-status-label");
 const challengeRunStatusDetail = element<HTMLParagraphElement>("challenge-run-status-detail");
 const challengeActualSection = element<HTMLElement>("challenge-actual-section");
+const challengeActualError = element<HTMLParagraphElement>("challenge-actual-error");
 const challengeActualMessage = element<HTMLParagraphElement>("challenge-actual-message");
 const challengeActualOutput = element<HTMLPreElement>("challenge-actual-output");
 const challengeActualOutputCode = element<HTMLElement>("challenge-actual-output-code");
@@ -592,6 +593,7 @@ function setMobileTab(tab: MobileTab): void {
 function renderChallengeResult(): void {
     challengeRunStatus.hidden = true;
     challengeActualSection.hidden = true;
+    challengeActualError.hidden = true;
     challengeActualMessage.hidden = true;
     challengeActualOutput.hidden = true;
     challengeRenderCollisionWarning.hidden = true;
@@ -621,7 +623,11 @@ function renderChallengeResult(): void {
 
     const failure = lastRunFailures.get(state.levelIndex);
     if (failure?.error) {
-        challengeActualOutputCode.textContent = `Error: ${failure.error.message}`;
+        challengeActualError.textContent = `Error: ${failure.error.message}`;
+        challengeActualError.hidden = false;
+    }
+    if (failure?.error && failure.actual === undefined) {
+        challengeActualOutputCode.textContent = "";
     } else {
         const actual = failure === undefined
             ? renderTokensForDisplay(
@@ -634,15 +640,12 @@ function renderChallengeResult(): void {
         }
         challengeActualOutputCode.textContent = actual;
     }
-    challengeActualOutput.hidden = false;
+    challengeActualOutput.hidden = failure?.error !== undefined
+        && failure.actual === undefined;
 
     if (failure) {
         challengeDiffSection.hidden = false;
-        if (failure.error) {
-            challengeDiffMessage.textContent =
-                "A diff is unavailable because your code returned an error.";
-            challengeDiffMessage.hidden = false;
-        } else {
+        if (failure.actual !== undefined) {
             const expected = renderTokensForDisplay(
                 failure.expected,
                 failure.renderedExpected,
@@ -656,6 +659,10 @@ function renderChallengeResult(): void {
                 renderDiff(document, expected, actual),
             );
             challengeDiffOutput.hidden = false;
+        } else if (failure.error) {
+            challengeDiffMessage.textContent =
+                "A diff is unavailable because your code returned an error.";
+            challengeDiffMessage.hidden = false;
         }
     }
 }
@@ -774,7 +781,7 @@ function renderLevel(): void {
 }
 
 function renderTokensForDisplay(
-    tokens: number[] | undefined,
+    tokens: unknown[] | undefined,
     playerRendering: string | undefined,
 ): string | undefined {
     if (previewRenderMode === "json") {
@@ -1003,7 +1010,8 @@ function appendFailureResult(list: HTMLUListElement, failure: LevelFailure): voi
         error.className = "mt-2 text-zinc-400";
         error.textContent = `Error: ${failure.error.message}`;
         item.append(error);
-    } else {
+    }
+    if (failure.actual !== undefined) {
         const expected = renderTokensForDisplay(failure.expected, failure.renderedExpected);
         const actual = renderTokensForDisplay(failure.actual, failure.renderedActual);
         if (expected === undefined || actual === undefined) {

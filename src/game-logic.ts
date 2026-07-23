@@ -29,7 +29,7 @@ export type LevelFailure = {
     levelIndex: number,
     expected: number[],
     renderedExpected: string,
-    actual?: number[],
+    actual?: unknown[],
     renderedActual?: string,
     error?: Error,
 };
@@ -143,6 +143,10 @@ export async function runProgression(
                     levelIndex: level.levelIndex,
                     expected: level.expected,
                     renderedExpected: renderedLevel.expected,
+                    ...(execution.result === undefined ? {} : {actual: execution.result}),
+                    ...(execution.renderedResult === undefined
+                        ? {}
+                        : {renderedActual: execution.renderedResult}),
                     error: execution.error,
                 };
             } else if (!arraysEqual(execution.result, level.expected)) {

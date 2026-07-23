@@ -1,6 +1,12 @@
 export type CodeExecutionResult =
     | {ok: true, result: number[], renderedResult: string, executionTimeMs?: number}
-    | {ok: false, error: Error, executionTimeMs?: number};
+    | {
+        ok: false,
+        error: Error,
+        result?: unknown[],
+        renderedResult?: string,
+        executionTimeMs?: number,
+    };
 
 export type ConsoleOutputEntry = {
     message: string,
@@ -93,7 +99,13 @@ export function runCode(
                     consoleOutput: ConsoleOutputEntry[],
                     results: Array<
                         | {ok: true, result: number[], renderedResult: string, executionTimeMs: number}
-                        | {ok: false, error: SerializedError, executionTimeMs: number}
+                        | {
+                            ok: false,
+                            error: SerializedError,
+                            result?: unknown[],
+                            renderedResult?: string,
+                            executionTimeMs: number,
+                        }
                     >,
                 }
                 | {
@@ -242,7 +254,13 @@ return {
                         activeLevelIndex = undefined;
                         const results: Array<
                             | {ok: true, result: number[], renderedResult: string, executionTimeMs: number}
-                            | {ok: false, error: SerializedError, executionTimeMs: number}
+                            | {
+                                ok: false,
+                                error: SerializedError,
+                                result?: unknown[],
+                                renderedResult?: string,
+                                executionTimeMs: number,
+                            }
                         > = [];
                         let earlierLevelFailed = false;
 
@@ -268,9 +286,24 @@ return {
                                 }
 
                                 if (!result.every(value => typeof value === "number")) {
-                                    throw new TypeError(
+                                    const error = new TypeError(
                                         `Every value returned by execute(input) must be a number.\n  Got: ${JSON.stringify(result)}`,
                                     );
+                                    results.push({
+                                        ok: false,
+                                        error: serializeError(error),
+                                        result,
+                                        renderedResult: await renderTokens(result),
+                                        executionTimeMs,
+                                    });
+                                    earlierLevelFailed = true;
+                                    if (
+                                        options
+                                        && inputIndex >= options.stopAtFirstFailureFrom
+                                    ) {
+                                        break;
+                                    }
+                                    continue;
                                 }
 
                                 results.push({
@@ -467,6 +500,8 @@ return {
                                 message?: string,
                                 stack?: string,
                             },
+                            result?: unknown[],
+                            renderedResult?: string,
                             executionTimeMs: number,
                         }
                     >,
@@ -488,7 +523,17 @@ return {
                         const error = new Error(execution.error.message ?? "Code execution failed.");
                         error.name = execution.error.name ?? "ExecutionError";
                         if (execution.error.stack) error.stack = execution.error.stack;
-                        return {ok: false, error, executionTimeMs: execution.executionTimeMs};
+                        return {
+                            ok: false,
+                            error,
+                            ...(execution.result === undefined
+                                ? {}
+                                : {result: execution.result}),
+                            ...(execution.renderedResult === undefined
+                                ? {}
+                                : {renderedResult: execution.renderedResult}),
+                            executionTimeMs: execution.executionTimeMs,
+                        };
                     }),
                     renderings: response.renderings,
                     consoleOutput: response.consoleOutput,
