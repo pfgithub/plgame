@@ -66,7 +66,7 @@
 
         <aside
             id="task-rail"
-            class="contents min-h-0 min-w-0 border-zinc-800 group-data-[browsing=true]/workspace:[&>#challenge-panel]:!hidden group-data-[browsing=true]/workspace:[&>#results-panel]:!hidden md:col-start-3 md:row-start-1 md:flex md:flex-col md:overflow-y-auto md:border-l"
+            class="contents min-h-0 min-w-0 border-zinc-800 group-data-[browsing=true]/workspace:[&>#challenge-panel]:!hidden md:col-start-3 md:row-start-1 md:flex md:flex-col md:overflow-y-auto md:border-l"
             aria-label="Current level"
         >
             <header
@@ -116,7 +116,7 @@
 
             <nav
                 id="mobile-tabs"
-                class="col-start-1 row-start-2 grid grid-cols-3 border-b border-zinc-800 bg-zinc-950 group-data-[browsing=true]/workspace:!hidden md:hidden [&_button]:border-r [&_button]:border-zinc-800 [&_button]:text-xs [&_button]:text-zinc-500 [&_button]:hover:bg-zinc-900 [&_button]:hover:text-zinc-200 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:-outline-offset-2 [&_button]:focus-visible:outline-violet-400 [&_button:last-child]:border-r-0 [&_button[aria-selected=true]]:bg-zinc-900 [&_button[aria-selected=true]]:font-semibold [&_button[aria-selected=true]]:text-violet-300"
+                class="col-start-1 row-start-2 grid grid-cols-2 border-b border-zinc-800 bg-zinc-950 group-data-[browsing=true]/workspace:!hidden md:hidden [&_button]:border-r [&_button]:border-zinc-800 [&_button]:text-xs [&_button]:text-zinc-500 [&_button]:hover:bg-zinc-900 [&_button]:hover:text-zinc-200 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:-outline-offset-2 [&_button]:focus-visible:outline-violet-400 [&_button:last-child]:border-r-0 [&_button[aria-selected=true]]:bg-zinc-900 [&_button[aria-selected=true]]:font-semibold [&_button[aria-selected=true]]:text-violet-300"
                 role="tablist"
                 aria-label="Game workspace"
             >
@@ -137,28 +137,11 @@
                     aria-selected="true"
                     data-tab="code"
                 >Code</button>
-                <button
-                    id="results-tab"
-                    type="button"
-                    role="tab"
-                    aria-controls="results-panel"
-                    aria-selected="false"
-                    tabindex="-1"
-                    data-tab="results"
-                >
-                    Failures
-                    <span
-                        id="failures-tab-count"
-                        class="ml-1 inline-flex min-w-4 items-center justify-center rounded-full bg-red-500/20 px-1 text-[0.625rem] font-semibold leading-4 text-red-300"
-                        aria-hidden="true"
-                        hidden
-                    ></span>
-                </button>
             </nav>
 
             <section
                 id="challenge-panel"
-                class="col-start-1 row-start-3 hidden min-h-0 overflow-y-auto border-zinc-800 p-2.5 group-data-[mobile-tab=challenge]/workspace:block md:block md:shrink-0 md:border-b md:p-3"
+                class="col-start-1 row-start-3 hidden min-h-0 overflow-y-auto p-2.5 group-data-[mobile-tab=challenge]/workspace:block md:block md:flex-1 md:p-3"
                 role="tabpanel"
                 aria-labelledby="challenge-tab"
             >
@@ -199,32 +182,6 @@
                     aria-live="polite"
                     aria-atomic="true"
                 ></div>
-            </section>
-
-            <section
-                id="results-panel"
-                class="col-start-1 row-start-3 hidden min-h-0 overflow-y-auto p-2.5 group-data-[mobile-tab=results]/workspace:block md:block md:flex-1 md:p-3"
-                role="tabpanel"
-                aria-labelledby="results-tab"
-            >
-                <h2 class="mb-2 flex items-center gap-1.5 text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-zinc-500">
-                    Failures
-                    <span
-                        id="failures-panel-count"
-                        class="inline-flex min-w-4 items-center justify-center rounded-full bg-red-500/20 px-1 text-[0.625rem] font-semibold leading-4 tracking-normal text-red-300"
-                        aria-hidden="true"
-                        hidden
-                    ></span>
-                </h2>
-                <div
-                    id="status"
-                    class="text-xs leading-relaxed text-zinc-400 [&_button]:block [&_button]:w-full [&_button]:rounded [&_button]:border [&_button]:border-red-500/40 [&_button]:bg-red-500/10 [&_button]:p-2 [&_button]:text-left [&_button]:font-medium [&_button]:text-red-300 [&_button]:hover:border-red-400/60 [&_button]:hover:bg-red-500/15 [&_button]:hover:text-red-200 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-2 [&_button]:focus-visible:outline-red-400 [&_button:disabled]:cursor-default [&_button:disabled]:opacity-60 [&_li+li]:mt-1.5"
-                    role="status"
-                    aria-live="polite"
-                    aria-atomic="true"
-                >
-                    <div id="result-content">Run your code to see failed levels.</div>
-                </div>
             </section>
 
             <nav

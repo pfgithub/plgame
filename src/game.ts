@@ -33,7 +33,7 @@ const MIN_EDITOR_WIDTH = 360;
 const DIVIDER_WIDTH = 8;
 const RAIL_RESIZE_STEP = 24;
 
-type MobileTab = "challenge" | "code" | "results";
+type MobileTab = "challenge" | "code";
 
 type CustomCodeVersion = {
     id: string,
@@ -93,9 +93,6 @@ const levelGrid = element<HTMLDivElement>("level-grid");
 const inputTokens = element<HTMLElement>("level-input");
 const outputTokens = element<HTMLElement>("level-output");
 const challengeResult = element<HTMLDivElement>("challenge-result");
-const status = element<HTMLDivElement>("status");
-const failuresTabCount = element<HTMLSpanElement>("failures-tab-count");
-const failuresPanelCount = element<HTMLSpanElement>("failures-panel-count");
 const successModal = element<HTMLDialogElement>("success-modal");
 const successModalSummary = element<HTMLParagraphElement>("success-modal-summary");
 const successResults = element<HTMLDivElement>("success-results");
@@ -105,12 +102,10 @@ const closeSuccessModalButton = element<HTMLButtonElement>("close-success-modal"
 const mobileTabButtons = [
     element<HTMLButtonElement>("challenge-tab"),
     element<HTMLButtonElement>("code-tab"),
-    element<HTMLButtonElement>("results-tab"),
 ];
 const mobilePanels: Record<MobileTab, HTMLElement> = {
     challenge: element<HTMLElement>("challenge-panel"),
     code: element<HTMLElement>("code-panel"),
-    results: element<HTMLElement>("results-panel"),
 };
 const narrowScreen = window.matchMedia("(max-width: 48rem)");
 
@@ -474,45 +469,6 @@ function renderChallengeResult(): void {
     challengeResult.replaceChildren(...children);
 }
 
-function renderResults(): void {
-    const failureCount = lastRunFailures.size;
-    const badgeCount = failureCount - 1;
-    for (const badge of [failuresTabCount, failuresPanelCount]) {
-        badge.hidden = badgeCount <= 0;
-        badge.textContent = String(badgeCount);
-    }
-
-    if (running) {
-        status.textContent = "Running…";
-        return;
-    }
-    if (lastRunTestedThrough < 0) {
-        status.textContent = "Run your code to see failed levels.";
-        return;
-    }
-
-    const failures = [...lastRunFailures.values()]
-        .toSorted((left, right) => left.levelIndex - right.levelIndex);
-    if (failures.length === 0) {
-        status.textContent = "All tested levels passed.";
-        return;
-    }
-
-    const list = document.createElement("ul");
-    for (const failure of failures) {
-        const item = document.createElement("li");
-        const button = document.createElement("button");
-        button.type = "button";
-        const current = failure.levelIndex === state.levelIndex;
-        button.textContent = `Level ${failure.levelIndex + 1} failed`;
-        if (current) button.setAttribute("aria-current", "step");
-        button.addEventListener("click", () => focusFailure(failure));
-        item.append(button);
-        list.append(item);
-    }
-    status.replaceChildren(list);
-}
-
 function levelState(levelIndex: number): "failed" | "passed" | "unlocked" {
     if (lastRunFailures.has(levelIndex)) return "failed";
     if (levelIndex <= lastRunTestedThrough) return "passed";
@@ -629,7 +585,6 @@ function render(): void {
     renderLevel();
     renderLevelGrid();
     renderChallengeResult();
-    renderResults();
     setMobileTab(activeMobileTab);
 }
 
