@@ -12,6 +12,11 @@ export type CodeRunOptions = {
     expectedResults: number[][],
 };
 
+/**
+ * Calling this is slow, never call this twice in a row.
+ * Always batch multiple calls into one call instead,
+ * modifying the runCode implementaion if needed.
+ */
 export function runCode(
     code: string,
     inputs: number[][],
