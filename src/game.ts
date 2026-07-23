@@ -105,8 +105,17 @@ const deleteAllProgressButton = element<HTMLButtonElement>("delete-all-progress"
 const levelGrid = element<HTMLDivElement>("level-grid");
 const inputTokens = element<HTMLElement>("level-input");
 const outputTokens = element<HTMLElement>("level-output");
-const challengeResult = element<HTMLDivElement>("challenge-result");
 const challengeResultsOutdated = element<HTMLDivElement>("challenge-results-outdated");
+const challengeRunStatus = element<HTMLDivElement>("challenge-run-status");
+const challengeRunStatusLabel = element<HTMLElement>("challenge-run-status-label");
+const challengeRunStatusDetail = element<HTMLParagraphElement>("challenge-run-status-detail");
+const challengeActualSection = element<HTMLElement>("challenge-actual-section");
+const challengeActualMessage = element<HTMLParagraphElement>("challenge-actual-message");
+const challengeActualOutput = element<HTMLPreElement>("challenge-actual-output");
+const challengeActualOutputCode = element<HTMLElement>("challenge-actual-output-code");
+const challengeDiffSection = element<HTMLElement>("challenge-diff-section");
+const challengeDiffMessage = element<HTMLParagraphElement>("challenge-diff-message");
+const challengeDiffOutput = element<HTMLDivElement>("challenge-diff-output");
 const levelResultsOutdated = element<HTMLDivElement>("level-results-outdated");
 const actionModal = element<HTMLDialogElement>("action-modal");
 const actionModalForm = element<HTMLFormElement>("action-modal-form");
@@ -514,44 +523,6 @@ function deleteCodeVersion(): void {
     );
 }
 
-function codeBlock(text: string, renderedOutput = false): HTMLPreElement {
-    const pre = document.createElement("pre");
-    if (renderedOutput) pre.className = "font-mono";
-    const code = document.createElement("code");
-    code.textContent = text;
-    pre.append(code);
-    return pre;
-}
-
-function executeResultLabel(): HTMLDivElement {
-    const label = document.createElement("div");
-    label.className = "mb-1 flex items-center gap-2";
-
-    const heading = document.createElement("strong");
-    heading.textContent = "Your code returned";
-
-    const source = document.createElement("span");
-    source.className =
-        "inline-flex items-center gap-1 text-[0.625rem] text-zinc-600 [&_.lucide]:size-3";
-    source.title = "This output is returned by your code's execute() function.";
-    const sourceText = document.createElement("span");
-    const code = document.createElement("code");
-    code.className = "text-zinc-500";
-    code.textContent = "execute()";
-    sourceText.append("via ", code);
-    source.append(
-        createIconElement(Info, {
-            class: "lucide lucide-info",
-            height: 12,
-            width: 12,
-        }),
-        sourceText,
-    );
-
-    label.append(heading, source);
-    return label;
-}
-
 function setMobileTab(tab: MobileTab): void {
     activeMobileTab = tab;
     workspace.dataset.mobileTab = tab;
@@ -568,62 +539,63 @@ function setMobileTab(tab: MobileTab): void {
 }
 
 function renderChallengeResult(): void {
+    challengeRunStatus.hidden = true;
+    challengeActualSection.hidden = true;
+    challengeActualMessage.hidden = true;
+    challengeActualOutput.hidden = true;
+    challengeDiffSection.hidden = true;
+    challengeDiffMessage.hidden = true;
+    challengeDiffOutput.hidden = true;
+    challengeDiffOutput.replaceChildren();
+
     if (running) {
-        challengeResult.textContent = "Running…";
+        challengeRunStatusLabel.textContent = "Running…";
+        challengeRunStatusDetail.textContent = "";
+        challengeRunStatus.hidden = false;
         return;
     }
     if (runError !== undefined) {
-        const label = document.createElement("strong");
-        label.textContent = "Run failed";
-        const detail = document.createElement("p");
-        detail.textContent = runError;
-        challengeResult.replaceChildren(
-            label,
-            ...(resultsOutOfDate ? [challengeResultsOutdated] : []),
-            detail,
-        );
+        challengeRunStatusLabel.textContent = "Run failed";
+        challengeRunStatusDetail.textContent = runError;
+        challengeRunStatus.hidden = false;
         return;
     }
+
+    challengeActualSection.hidden = false;
     if (lastRunTestedThrough < 0) {
-        const label = executeResultLabel();
-        const detail = document.createElement("p");
-        detail.textContent = "Run your code to see what it returns.";
-        challengeResult.replaceChildren(label, detail);
+        challengeActualMessage.hidden = false;
         return;
     }
 
     const failure = lastRunFailures.get(state.levelIndex);
-    const actualLabel = executeResultLabel();
-    const children: HTMLElement[] = [actualLabel];
-    if (resultsOutOfDate) children.push(challengeResultsOutdated);
-
     if (failure?.error) {
-        children.push(codeBlock(`Error: ${failure.error.message}`));
+        challengeActualOutputCode.textContent = `Error: ${failure.error.message}`;
     } else {
         const actual = failure?.renderedActual ?? renderedLevels[state.levelIndex]?.expected;
         if (actual === undefined) {
             throw new Error(`Missing rendered output for level ${state.levelIndex + 1}.`);
         }
-        children.push(codeBlock(actual, true));
+        challengeActualOutputCode.textContent = actual;
     }
+    challengeActualOutput.hidden = false;
 
     if (failure) {
-        const diffLabel = document.createElement("strong");
-        diffLabel.textContent = "Diff";
-        children.push(diffLabel);
+        challengeDiffSection.hidden = false;
         if (failure.error) {
-            const unavailable = document.createElement("p");
-            unavailable.textContent = "A diff is unavailable because your code returned an error.";
-            children.push(unavailable);
+            challengeDiffMessage.textContent =
+                "A diff is unavailable because your code returned an error.";
+            challengeDiffMessage.hidden = false;
         } else {
             const actual = failure.renderedActual;
             if (actual === undefined) {
                 throw new Error(`Missing rendered output for level ${failure.levelIndex + 1}.`);
             }
-            children.push(renderDiff(document, failure.renderedExpected, actual));
+            challengeDiffOutput.replaceChildren(
+                renderDiff(document, failure.renderedExpected, actual),
+            );
+            challengeDiffOutput.hidden = false;
         }
     }
-    challengeResult.replaceChildren(...children);
 }
 
 function levelState(levelIndex: number): "failed" | "passed" | "unlocked" {

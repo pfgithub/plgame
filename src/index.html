@@ -177,7 +177,7 @@
                 <pre class="mb-3 min-h-8 whitespace-pre-wrap break-words rounded border border-zinc-800 bg-zinc-900/60 p-2 font-mono text-xs leading-relaxed text-zinc-300"><code id="level-output"></code></pre>
                 <div
                     id="challenge-result"
-                    class="text-xs leading-relaxed text-zinc-400 [&_.diff-line]:font-mono [&_.diff-line-actual]:text-red-400 [&_.diff-line-expected]:text-emerald-400 [&_del]:bg-emerald-400/15 [&_del]:text-emerald-300 [&_del]:no-underline [&_ins]:bg-red-400/15 [&_ins]:text-red-300 [&_ins]:no-underline [&_p]:my-2 [&_pre]:my-1 [&_pre]:min-h-8 [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_pre]:rounded [&_pre]:border [&_pre]:border-zinc-800 [&_pre]:bg-zinc-900/60 [&_pre]:p-2 [&_strong]:text-zinc-100"
+                    class="text-xs leading-relaxed text-zinc-400"
                     role="status"
                     aria-live="polite"
                     aria-atomic="true"
@@ -190,6 +190,42 @@
                         <strong>Results out of date.</strong>
                         The code changed since this run. Run again to update them.
                     </div>
+                    <div id="challenge-run-status" hidden>
+                        <strong id="challenge-run-status-label" class="text-zinc-100"></strong>
+                        <p id="challenge-run-status-detail" class="my-2"></p>
+                    </div>
+                    <section id="challenge-actual-section">
+                        <div class="mb-1 flex items-center gap-2">
+                            <h3 class="text-xs font-semibold text-zinc-200">Your code returned</h3>
+                            <span
+                                class="inline-flex items-center gap-1 text-[0.625rem] text-zinc-600 [&_.lucide]:size-3"
+                                title="This output is returned by your code's execute() function."
+                            >
+                                <i data-lucide="info"></i>
+                                <span>via <code class="text-zinc-500">execute()</code></span>
+                            </span>
+                        </div>
+                        <p id="challenge-actual-message" class="my-2">Run your code to see what it returns.</p>
+                        <pre
+                            id="challenge-actual-output"
+                            class="mb-3 min-h-8 whitespace-pre-wrap break-words rounded border border-zinc-800 bg-zinc-900/60 p-2 font-mono text-xs leading-relaxed text-zinc-300"
+                            hidden
+                        ><code id="challenge-actual-output-code"></code></pre>
+                    </section>
+                    <section
+                        id="challenge-diff-section"
+                        class="[&_.diff-line-actual]:text-red-400 [&_.diff-line-expected]:text-emerald-400 [&_del]:bg-emerald-400/15 [&_del]:text-emerald-300 [&_del]:no-underline [&_ins]:bg-red-400/15 [&_ins]:text-red-300 [&_ins]:no-underline"
+                        hidden
+                    >
+                        <div class="mb-1 flex items-center gap-2">
+                            <h3 class="text-xs font-semibold text-zinc-200">Diff</h3>
+                        </div>
+                        <p id="challenge-diff-message" class="my-2" hidden></p>
+                        <div
+                            id="challenge-diff-output"
+                            class="[&_.diff-line]:font-mono [&_pre]:mb-3 [&_pre]:min-h-8 [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_pre]:rounded [&_pre]:border [&_pre]:border-zinc-800 [&_pre]:bg-zinc-900/60 [&_pre]:p-2 [&_pre]:font-mono [&_pre]:text-xs [&_pre]:leading-relaxed [&_pre]:text-zinc-300"
+                        ></div>
+                    </section>
                 </div>
             </section>
 
