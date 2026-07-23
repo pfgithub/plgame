@@ -103,6 +103,8 @@ const levelGrid = element<HTMLDivElement>("level-grid");
 const inputTokens = element<HTMLElement>("level-input");
 const outputTokens = element<HTMLElement>("level-output");
 const challengeResult = element<HTMLDivElement>("challenge-result");
+const challengeResultsOutdated = element<HTMLDivElement>("challenge-results-outdated");
+const levelResultsOutdated = element<HTMLDivElement>("level-results-outdated");
 const actionModal = element<HTMLDialogElement>("action-modal");
 const actionModalForm = element<HTMLFormElement>("action-modal-form");
 const actionModalTitle = element<HTMLHeadingElement>("action-modal-title");
@@ -256,6 +258,7 @@ let previewError: string | undefined;
 let runError: string | undefined;
 let lastRunFailures = new Map<number, LevelFailure>();
 let lastRunTestedThrough = -1;
+let resultsOutOfDate = false;
 let railWidth = state.railWidth;
 let switchingCodeVersion = false;
 let actionModalSubmit: ((value: string) => string | undefined) | undefined;
@@ -314,6 +317,13 @@ const editor = new EditorView({
             if (version.kind !== "custom") return;
             version.code = update.state.doc.toString();
             saveCodeVersions();
+            if (
+                !resultsOutOfDate
+                && (lastRunTestedThrough >= 0 || runError !== undefined)
+            ) {
+                resultsOutOfDate = true;
+                render();
+            }
         }),
     ],
     parent: editorParent,
@@ -328,6 +338,7 @@ function checkpointLabel(passesThroughLevel: number): string {
 function selectCodeVersion(versionId: string): void {
     const version = codeVersions.versions.find(candidate => candidate.id === versionId);
     if (!version) return;
+    const changedVersion = version.id !== codeVersions.selectedVersionId;
 
     codeVersions.selectedVersionId = version.id;
     switchingCodeVersion = true;
@@ -343,6 +354,9 @@ function selectCodeVersion(versionId: string): void {
         switchingCodeVersion = false;
     }
     saveCodeVersions();
+    if (changedVersion && (lastRunTestedThrough >= 0 || runError !== undefined)) {
+        resultsOutOfDate = true;
+    }
     render();
 }
 
@@ -506,7 +520,15 @@ function renderChallengeResult(): void {
         return;
     }
     if (runError !== undefined) {
-        challengeResult.textContent = `Run failed: ${runError}`;
+        const label = document.createElement("strong");
+        label.textContent = "Run failed";
+        const detail = document.createElement("p");
+        detail.textContent = runError;
+        challengeResult.replaceChildren(
+            label,
+            ...(resultsOutOfDate ? [challengeResultsOutdated] : []),
+            detail,
+        );
         return;
     }
     if (lastRunTestedThrough < 0) {
@@ -522,6 +544,7 @@ function renderChallengeResult(): void {
     const actualLabel = document.createElement("strong");
     actualLabel.textContent = "Your code returned";
     const children: HTMLElement[] = [actualLabel];
+    if (resultsOutOfDate) children.push(challengeResultsOutdated);
 
     if (failure?.error) {
         children.push(codeBlock(`Error: ${failure.error.message}`));
@@ -690,6 +713,9 @@ function render(): void {
     resetSolvedLevelsButton.disabled =
         running || refreshingPreviews || state.highestLevelIndex === 0;
     deleteAllProgressButton.disabled = running || refreshingPreviews;
+    const showOutdatedResults = resultsOutOfDate && !running;
+    challengeResultsOutdated.hidden = !showOutdatedResults;
+    levelResultsOutdated.hidden = !showOutdatedResults;
     renderCodeVersions();
     renderLevel();
     renderLevelGrid();
@@ -704,6 +730,7 @@ function resetSolvedLevels(): void {
     state.levelIndex = 0;
     lastRunFailures = new Map();
     lastRunTestedThrough = -1;
+    resultsOutOfDate = false;
     runError = undefined;
     saveState();
     render();
@@ -895,8 +922,9 @@ async function runGame(): Promise<void> {
     runError = undefined;
     render();
 
+    const code = editor.state.doc.toString();
+    const codeVersionId = codeVersions.selectedVersionId;
     try {
-        const code = editor.state.doc.toString();
         const currentLevelIndex = state.levelIndex;
         const previousHighestLevelIndex = state.highestLevelIndex;
         const result = await runProgression(
@@ -917,6 +945,8 @@ async function runGame(): Promise<void> {
         previewError = undefined;
         state.highestLevelIndex = Math.max(state.highestLevelIndex, result.levelIndex);
         lastRunTestedThrough = state.highestLevelIndex;
+        resultsOutOfDate = codeVersionId !== codeVersions.selectedVersionId
+            || code !== editor.state.doc.toString();
 
         if (state.highestLevelIndex > previousHighestLevelIndex) {
             const passesThroughLevel = result.kind === "complete"
@@ -950,6 +980,9 @@ async function runGame(): Promise<void> {
         }
     } catch (error) {
         runError = error instanceof Error ? error.message : String(error);
+        resultsOutOfDate = lastRunTestedThrough >= 0
+            || codeVersionId !== codeVersions.selectedVersionId
+            || code !== editor.state.doc.toString();
     } finally {
         running = false;
         render();

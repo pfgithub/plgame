@@ -181,7 +181,16 @@
                     role="status"
                     aria-live="polite"
                     aria-atomic="true"
-                ></div>
+                >
+                    <div
+                        id="challenge-results-outdated"
+                        class="mb-3 mt-2 rounded border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-xs leading-relaxed text-amber-200"
+                        hidden
+                    >
+                        <strong>Results out of date.</strong>
+                        The code changed since this run. Run again to update them.
+                    </div>
+                </div>
             </section>
 
             <nav
@@ -201,6 +210,15 @@
                             <i data-lucide="settings" aria-hidden="true"></i>
                             Settings
                         </button>
+                    </div>
+                    <div
+                        id="level-results-outdated"
+                        class="mb-3 rounded border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-xs leading-relaxed text-amber-200"
+                        role="status"
+                        hidden
+                    >
+                        <strong>Results out of date.</strong>
+                        Run the current code to update level statuses.
                     </div>
                     <div
                         id="level-grid"
