@@ -3,6 +3,15 @@ import { javascript } from "@codemirror/lang-javascript";
 import { Compartment, EditorState } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { basicSetup, EditorView } from "codemirror";
+import {
+    ArrowLeft,
+    ArrowRight,
+    ArrowRightToLine,
+    ChevronDown,
+    createIcons,
+    Info,
+    Plus,
+} from "lucide";
 import { renderDiff } from "./diff-renderer.ts";
 import { renderCode, runCode } from "./executor.ts";
 import {
@@ -47,6 +56,17 @@ type CodeVersionsState = {
     versions: CodeVersion[],
 };
 
+createIcons({
+    icons: {
+        ArrowLeft,
+        ArrowRight,
+        ArrowRightToLine,
+        ChevronDown,
+        Info,
+        Plus,
+    },
+});
+
 function element<T extends HTMLElement>(id: string): T {
     const found = document.querySelector<T>(`#${id}`);
     if (!found) throw new Error(`Missing #${id}.`);
@@ -66,6 +86,7 @@ const latestButton = element<HTMLButtonElement>("latest-level");
 const runButton = element<HTMLButtonElement>("run");
 const refreshPreviewsButton = element<HTMLButtonElement>("refresh-previews");
 const levelButton = element<HTMLButtonElement>("level-number");
+const levelButtonLabel = element<HTMLSpanElement>("level-number-label");
 const levelNavigation = element<HTMLElement>("level-navigation");
 const levelGrid = element<HTMLDivElement>("level-grid");
 const inputTokens = element<HTMLElement>("level-input");
@@ -507,7 +528,7 @@ function renderLevel(): void {
     const rendered = renderedLevels[state.levelIndex];
 
     const itemState = levelState(state.levelIndex);
-    levelButton.textContent = `Level ${state.levelIndex + 1}`;
+    levelButtonLabel.textContent = `Level ${state.levelIndex + 1}`;
     if (itemState === "unlocked") delete levelButton.dataset.levelState;
     else levelButton.dataset.levelState = itemState;
     const unavailable = previewError === undefined

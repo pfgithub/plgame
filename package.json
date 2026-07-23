@@ -10,6 +10,7 @@
     "codemirror": "^6.0.2",
     "diff-match-patch": "^1.0.5",
     "eslint": "^10.7.0",
+    "lucide": "^1.25.0",
     "typescript": "6",
     "typescript-eslint": "^8.65.0"
   },
