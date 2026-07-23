@@ -1,4 +1,4 @@
-export type Token = number & {__is_token: true};
+type Token = number & {__is_token: true};
 
 const indexToToken = [
     // some controls
@@ -75,7 +75,7 @@ function tokenize(input: string): Token[] {
     commit();
     return output;
 }
-export type Level = {raw: string, input: Token[], output: Token[]};
+type Level = {raw: string, input: Token[], output: Token[]};
 function level(input: string, output: string): Level {
     return {raw: input, input: tokenize(input), output: tokenize(output)};
 }
@@ -83,7 +83,7 @@ function level(input: string, output: string): Level {
 // note we could choose to do hex numbers in this game
 // actually let's do base 6? or base 8
 // ok base 6. or even base 4? no 6
-export const levels: Level[] = [
+const levels: Level[] = [
     // while true: replaceAll(/0[^#]/, "") replaceAll(/[^0]#/, "0#")
     level("0#", "0#"),
     level("00#", "0#"),
@@ -453,13 +453,18 @@ function execute(level: Token[]): Token[] {
     }
 }
 
-// test each level
+// Validate each level before generating the runtime data.
 for (const [i, level] of levels.entries()) {
     const output = execute(level.input);
     if (JSON.stringify(output) !== JSON.stringify(level.output)) {
-        console.error(`Error: Level ${i}: ${JSON.stringify(level.raw)}\n  Expected ${JSON.stringify(level.output.map(m => indexToToken[m]!))}\n  Received ${JSON.stringify(output.map(m => indexToToken[m]!))}`);
+        throw new Error(`Level ${i}: ${JSON.stringify(level.raw)}\n  Expected ${JSON.stringify(level.output.map(m => indexToToken[m]!))}\n  Received ${JSON.stringify(output.map(m => indexToToken[m]!))}`);
     }
 }
+
+await Bun.write(
+    new URL("../src/levels.json", import.meta.url),
+    `${JSON.stringify(levels.flatMap(({input, output}) => [input, output]))}\n`,
+);
 
 // execution:
 // take the input and execute from right to left

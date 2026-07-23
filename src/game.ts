@@ -24,13 +24,23 @@ import {
 } from "./executor.ts";
 import {
     DEFAULT_CODE,
+    type Level,
     type LevelFailure,
     parseState,
     type RenderedLevel,
     runProgression,
     serializeState,
+    type Token,
 } from "./game-logic.ts";
-import { levels } from "./levels.ts";
+import levelData from "./levels.json";
+
+const levels: Level[] = Array.from(
+    {length: levelData.length / 2},
+    (_, index) => ({
+        input: levelData[index * 2]! as Token[],
+        output: levelData[index * 2 + 1]! as Token[],
+    }),
+);
 
 const STORAGE_KEY = "plgame-state";
 const CODE_VERSIONS_STORAGE_KEY = "plgame-code-versions";

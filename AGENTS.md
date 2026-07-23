@@ -17,6 +17,7 @@ plgame is a browser-based programming puzzle about learning an unknown language 
 - `src/game-logic.ts`: UI-independent progression, failure reporting, default player code, and persisted-state serialization/parsing.
 - `src/executor.ts`: Sandboxed iframe and Web Worker runner that validates, times out, executes, renders, and captures console output from player code. Calling runCode() is slow, always batch multiple calls into one call instead, modifying the runCode implementaion if necessary.
 - `src/diff-renderer.ts`: Builds a semantic two-line HTML diff between expected and actual rendered output.
-- `src/levels.ts`: Token vocabulary, tokenizer, ordered puzzle corpus, and reference stack-language interpreter used to validate level data.
+- `src/levels.json`: Gitignored generated numeric level data consumed by the game at runtime.
+- `spoilers/spoilers.ts`: Token vocabulary, tokenizer, ordered puzzle corpus, reference stack-language interpreter, and generator for `src/levels.json`.
 
 If new files are added, or significant changes are made to existing files, add/update the summary.

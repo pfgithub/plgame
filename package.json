@@ -22,7 +22,8 @@
     "@types/diff-match-patch": "^1.0.36"
   },
   "scripts": {
-    "check": "bunx --bun eslint --fix && bunx tsc && bun test"
+    "generate-levels": "bun spoilers/levels.ts",
+    "check": "bun run generate-levels && bunx --bun eslint --fix && bunx tsc && bun test"
   },
   "private": true,
   "type": "module"

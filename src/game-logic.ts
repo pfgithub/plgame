@@ -1,9 +1,11 @@
-import type { Level, Token } from "./levels.ts";
 import type {
     CodeExecutionResult,
     CodeRunOptions,
     ConsoleOutputEntry,
 } from "./executor.ts";
+
+export type Token = number & {__is_token: true};
+export type Level = {input: Token[], output: Token[]};
 
 export const DEFAULT_CODE = `
 // Write code in execute() to solve the level

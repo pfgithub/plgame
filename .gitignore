@@ -27,6 +27,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .cache
 *.tsbuildinfo
 
+# generated level data
+/src/levels.json
+
 # IntelliJ based IDEs
 .idea
 

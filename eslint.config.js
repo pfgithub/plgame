@@ -50,7 +50,7 @@ export default defineConfig([
             "@stylistic/operator-linebreak": ["error", "before", {overrides: {"=": "after"}}],
         },
         extends: [tseslint.configs.base],
-        files: ["eslint.config.js", "src/**/*.{,m,c}{j,t}s{,x}"],
+        files: ["eslint.config.js", "src/**/*.{,m,c}{j,t}s{,x}", "spoilers/**/*.{,m,c}{j,t}s{,x}"],
         languageOptions: {
             parserOptions: {
                 projectService: true,
