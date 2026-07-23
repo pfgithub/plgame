@@ -96,6 +96,12 @@ const challengeResult = element<HTMLDivElement>("challenge-result");
 const status = element<HTMLDivElement>("status");
 const failuresTabCount = element<HTMLSpanElement>("failures-tab-count");
 const failuresPanelCount = element<HTMLSpanElement>("failures-panel-count");
+const successModal = element<HTMLDialogElement>("success-modal");
+const successModalSummary = element<HTMLParagraphElement>("success-modal-summary");
+const successResults = element<HTMLDivElement>("success-results");
+const successModalActions = element<HTMLElement>("success-modal-actions");
+const successPrimaryAction = element<HTMLButtonElement>("success-primary-action");
+const closeSuccessModalButton = element<HTMLButtonElement>("close-success-modal");
 const mobileTabButtons = [
     element<HTMLButtonElement>("challenge-tab"),
     element<HTMLButtonElement>("code-tab"),
@@ -628,8 +634,159 @@ function render(): void {
 }
 
 function focusFailure(failure: LevelFailure): void {
-    goToLevel(failure.levelIndex);
+    openLevelFromSuccessModal(failure.levelIndex);
+}
+
+function openLevelFromSuccessModal(levelIndex: number): void {
+    successModal.close();
+    levelNavigationExpanded = false;
+    goToLevel(levelIndex);
     setMobileTab("challenge");
+}
+
+type SuccessRun = {
+    currentLevelIndex: number,
+    previousHighestLevelIndex: number,
+    highestLevelIndex: number,
+};
+
+function levelRangeLabel(startIndex: number, endIndex: number): string {
+    return startIndex === endIndex
+        ? `Level ${startIndex + 1}`
+        : `Levels ${startIndex + 1}-${endIndex + 1}`;
+}
+
+function createSuccessResultItem(
+    label: string,
+    tone: "passed" | "failed" | "highlight" | "frontier",
+): HTMLLIElement {
+    const item = document.createElement("li");
+    item.className = "rounded border p-2.5";
+    const toneClasses = {
+        passed: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+        failed: "border-red-500/40 bg-red-500/10 text-red-300",
+        highlight: "border-blue-400/40 bg-blue-400/10 text-blue-300",
+        frontier: "border-yellow-400/40 bg-yellow-400/10 text-yellow-300",
+    };
+    item.classList.add(...toneClasses[tone].split(" "));
+    item.dataset.resultTone = tone;
+    item.setAttribute("aria-label", label);
+    return item;
+}
+
+function appendFailureResult(list: HTMLUListElement, failure: LevelFailure): void {
+    const item = createSuccessResultItem(
+        `Level ${failure.levelIndex + 1} failed`,
+        "failed",
+    );
+    const button = document.createElement("button");
+    button.className = "group flex w-full items-center justify-between gap-3 rounded border border-red-400/30 bg-red-500/10 px-2.5 py-2 text-left font-semibold hover:border-red-300/60 hover:bg-red-500/20 hover:text-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";
+    button.type = "button";
+    const label = document.createElement("span");
+    label.textContent = `Level ${failure.levelIndex + 1} failed`;
+    const action = document.createElement("span");
+    action.className = "shrink-0 font-medium text-red-200";
+    action.textContent = "Open level →";
+    button.replaceChildren(label, action);
+    button.addEventListener("click", () => focusFailure(failure));
+    item.append(button);
+
+    if (failure.error) {
+        const error = document.createElement("p");
+        error.className = "mt-2 text-zinc-400";
+        error.textContent = `Error: ${failure.error.message}`;
+        item.append(error);
+    } else {
+        const actual = failure.renderedActual;
+        if (actual === undefined) {
+            throw new Error(`Missing rendered output for level ${failure.levelIndex + 1}.`);
+        }
+        item.append(renderDiff(document, failure.renderedExpected, actual));
+    }
+    list.append(item);
+}
+
+function showSuccessModal(run: SuccessRun): void {
+    const unlockedNewLevels = run.highestLevelIndex > run.previousHighestLevelIndex;
+    const highlightedLevels = new Set<number>();
+    if (unlockedNewLevels) {
+        highlightedLevels.add(run.currentLevelIndex);
+        for (
+            let levelIndex = run.previousHighestLevelIndex + 1;
+            levelIndex <= run.highestLevelIndex;
+            levelIndex++
+        ) highlightedLevels.add(levelIndex);
+    }
+
+    const list = document.createElement("ul");
+    list.className = "grid gap-2";
+    let passingRangeStart: number | undefined;
+    const appendPassingRange = (endIndex: number): void => {
+        if (passingRangeStart === undefined) return;
+        const label = `${levelRangeLabel(passingRangeStart, endIndex)} passed`;
+        const item = createSuccessResultItem(label, "passed");
+        item.textContent = label;
+        list.append(item);
+        passingRangeStart = undefined;
+    };
+
+    for (let levelIndex = 0; levelIndex <= run.highestLevelIndex; levelIndex++) {
+        const failure = lastRunFailures.get(levelIndex);
+        const highlighted = highlightedLevels.has(levelIndex);
+        if (!failure && !highlighted) {
+            if (passingRangeStart === undefined) passingRangeStart = levelIndex;
+            continue;
+        }
+        appendPassingRange(levelIndex - 1);
+
+        if (highlighted) {
+            const isFrontierFailure = failure !== undefined
+                && levelIndex > run.previousHighestLevelIndex;
+            const item = createSuccessResultItem(
+                `Level ${levelIndex + 1}`,
+                isFrontierFailure ? "frontier" : "highlight",
+            );
+            const name = document.createElement("strong");
+            name.textContent = `Level ${levelIndex + 1}`;
+            const detail = document.createElement("span");
+            detail.className = "ml-2 font-normal opacity-80";
+            if (levelIndex === run.currentLevelIndex) detail.textContent = "Current level · passed";
+            else if (isFrontierFailure) detail.textContent = "New level · not passed";
+            else detail.textContent = "New level · passed";
+            item.replaceChildren(name, detail);
+            list.append(item);
+        } else if (failure) {
+            appendFailureResult(list, failure);
+        }
+    }
+    appendPassingRange(run.highestLevelIndex);
+
+    const newLevelCount = Math.max(
+        0,
+        run.highestLevelIndex - run.previousHighestLevelIndex,
+    );
+    successModalSummary.textContent = newLevelCount === 0
+        ? "Your latest run passed the current level."
+        : `${newLevelCount} new ${newLevelCount === 1 ? "level" : "levels"} unlocked.`;
+    successResults.replaceChildren(list);
+
+    const firstFailure = [...lastRunFailures.values()]
+        .filter(failure => failure.levelIndex <= run.highestLevelIndex)
+        .toSorted((left, right) => left.levelIndex - right.levelIndex)[0];
+    if (unlockedNewLevels) {
+        successPrimaryAction.textContent = `Continue to Level ${run.highestLevelIndex + 1}`;
+        successPrimaryAction.onclick = () =>
+            openLevelFromSuccessModal(run.highestLevelIndex);
+        successModalActions.hidden = false;
+    } else if (firstFailure) {
+        successPrimaryAction.textContent = `Review first failure · Level ${firstFailure.levelIndex + 1}`;
+        successPrimaryAction.onclick = () => focusFailure(firstFailure);
+        successModalActions.hidden = false;
+    } else {
+        successPrimaryAction.onclick = null;
+        successModalActions.hidden = true;
+    }
+    successModal.showModal();
 }
 
 function goToLevel(levelIndex: number): void {
@@ -647,6 +804,7 @@ async function runGame(): Promise<void> {
 
     try {
         const code = editor.state.doc.toString();
+        const currentLevelIndex = state.levelIndex;
         const previousHighestLevelIndex = state.highestLevelIndex;
         const result = await runProgression(
             code,
@@ -682,7 +840,21 @@ async function runGame(): Promise<void> {
             }
         }
         saveState();
-        activeMobileTab = lastRunFailures.has(state.levelIndex) ? "challenge" : "results";
+        const currentLevelPassed = !lastRunFailures.has(currentLevelIndex);
+        if (!currentLevelPassed) {
+            activeMobileTab = "challenge";
+        }
+        const unlockedNewLevels = state.highestLevelIndex > previousHighestLevelIndex;
+        const shouldShowSuccessModal = currentLevelPassed
+            && (!levelNavigationExpanded || unlockedNewLevels);
+        render();
+        if (shouldShowSuccessModal) {
+            showSuccessModal({
+                currentLevelIndex,
+                previousHighestLevelIndex,
+                highestLevelIndex: state.highestLevelIndex,
+            });
+        }
     } catch (error) {
         runError = error instanceof Error ? error.message : String(error);
     } finally {
@@ -741,6 +913,10 @@ latestButton.addEventListener("click", () => {
 });
 runButton.addEventListener("click", () => void runGame());
 refreshPreviewsButton.addEventListener("click", () => void refreshPreviews());
+closeSuccessModalButton.addEventListener("click", () => successModal.close());
+successModal.addEventListener("click", (event) => {
+    if (event.target === successModal) successModal.close();
+});
 levelButton.addEventListener("click", () => {
     levelNavigationExpanded = !levelNavigationExpanded;
     render();
