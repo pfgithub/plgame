@@ -1,12 +1,16 @@
 import type { Level, Token } from "./levels.ts";
 import type { CodeExecutionResult, CodeRunOptions } from "./executor.ts";
 
-export const DEFAULT_CODE = `function render(tokens) {
-    return tokens.join(" ");
-}
-
+export const DEFAULT_CODE = `
+// Write code in execute() to solve the level
 function execute(tokens) {
     return tokens;
+}
+// Your same code needs to solve every level
+
+// You may update render() to make the levels easier to understand
+function render(tokens) {
+    return JSON.stringify(tokens);
 }`;
 
 export type GameState = {
