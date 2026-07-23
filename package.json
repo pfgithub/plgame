@@ -23,7 +23,7 @@
   },
   "scripts": {
     "generate-levels": "bun spoilers/levels.ts",
-    "build": "bun run generate-levels && bun build ./src/index.html --outdir ./dist --production --public-path=/plgame",
+    "build": "bun run generate-levels && bun build ./src/index.html --outdir ./dist --production --public-path=/plgame/",
     "check": "bun run generate-levels && bunx --bun eslint --fix && bunx tsc && bun test"
   },
   "private": true,

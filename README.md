@@ -28,3 +28,5 @@ bun src/devserver
 # build static site
 bun build
 ```
+
+Levels & README are made by me. Everything else is prompted.
