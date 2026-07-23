@@ -46,6 +46,7 @@ export default defineConfig([
             "@typescript-eslint/no-unused-vars": ["off"],
             "@typescript-eslint/no-explicit-any": ["off"],
             "@typescript-eslint/no-empty-object-type": ["off"], // eeh whatever. these are generally temporary and get filled in later.
+            "@stylistic/max-statements-per-line": ["off"],
         },
         extends: [tseslint.configs.base],
         files: ["eslint.config.js", "src/**/*.{,m,c}{j,t}s{,x}"],

@@ -36,18 +36,53 @@ function level(input: string, output: string): Level {
 // why?=less unnamed sigils to figure out
 // ok base 6. or even base 4? no 6
 export const levels: Level[] = [
-    // copy input to output
-    level("true", "true"),
-    level("true true true true", "true true true true"),
-    // !
-    level("true true true ! true", "true true true false"),
-    level("! true", "false"),
-    level("true true ! true true", "true true false true"),
-    level("true ! true true true", "true false true true"),
-    level("! true true true true", "false true true true"),
-    // !!
-    level("!!true", "true"),
-    level("!true !!true", "false true"),
+    // while true: replaceAll(/0[^#]/, "") replaceAll(/[^0]#/, "0#")
+    level("0#", "0#"),
+    level("00#", "0#"),
+    level("000#", "0#"),
+    level("#", "0#"),
+    level("##", "0#0#"),
+    level("#0#", "0#0#"),
+    level("#00#", "0#0#"),
+    level("0#00#", "0#0#"),
+    level("00#00#", "0#0#"),
+    level("###", "0#0#0#"),
+    // while true: replaceAll(/0[^#]/, "") replaceAll(/[^0]#/, "0#")
+    level("1#", "1#"),
+    level("10#", "1#"),
+    level("01#", "01#"),
+    level("010#", "01#"),
+    level("00100#", "001#"),
+    level("01#10#", "01#1#"),
+    // replaceAll increment 0, 1
+    level("incr 0#", "1#"),
+    level("incr 0101#", "1101#"),
+    level("incr 0001#", "1001#"),
+    level("incr 0001#", "1001#"),
+    level("incr #", "1#"),
+    // replaceAll i1=>2,i2=>3,i3=>4,i4=>5
+    level("incr 1#", "2#"),
+    level("incr incr 01#", "21#"),
+    level("incr incr incr 0#", "3#"),
+    level("incr incr incr incr 0#", "4#"),
+    level("incr incr 2#", "4#"),
+    level("incr incr 3#", "5#"),
+    level("incr 4#", "5#"),
+    level("incr incr incr incr incr 0#", "5#"),
+    // variables
+    level("setvar 0# 5142#", ""),
+    level("getvar 0# setvar 0# 5142#", "5142#"),
+    level("getvar 0# setvar 0# 1234# setvar 0# 4321#", "1234#"),
+    level("getvar 0# setvar 0# 2353# setvar 0# 1433# setvar 0# 3854#", "2353#"),
+    level("getvar 0# setvar 0# 2353# setvar 1# 1433# setvar 2# 3854#", "2353#"),
+    level("getvar 1# setvar 0# 2353# setvar 1# 1433# setvar 2# 3854#", "1433#"),
+    level("getvar 2# setvar 0# 2353# setvar 1# 1433# setvar 2# 3854#", "3854#"),
+    level("setvar 0# 2353# setvar 1# 1433# setvar 2# 3854#", ""),
+    level("getvar 0# getvar 1# getvar 2# setvar 0# 2353# setvar 1# 1433# setvar 2# 3854#", "2353# 1433# 3854#"),
+    level("getvar 2# getvar 1# getvar 0# setvar 0# 2353# setvar 1# 1433# setvar 2# 3854#", "3854# 1433# 2353#"),
+    level("setvar 0# 5424# getvar 0# setvar 0# 0432#", "0432#"),
+    // newline (maybe delay this?)
+    level("setvar 0# 5424#\ngetvar 0#\nsetvar 0# 0432#", "5424#"),
 
     // copy input to output
     level("1#", "1#"),
@@ -236,6 +271,7 @@ function execute(level: Token[]): Token[] {
     type StackValue = number | unknown;
     const stackstack: StackValue[][] = [];
     let stack: StackValue[] = [];
+    const scope = new Map<number, StackValue>();
     const get = (): StackValue => {
         if (stack.length === 0) {
             throw new Error("ERR_no_stack");
@@ -267,6 +303,9 @@ function execute(level: Token[]): Token[] {
     const num = (n: number) => {
         put(getnum() * 6 + n);
     };
+    function error(msg: string): never {
+        throw new Error(msg);
+    };
     const executors: Record<string, () => void> = {
         "0": () => num(0),
         "1": () => num(1),
@@ -287,7 +326,7 @@ function execute(level: Token[]): Token[] {
         "[": () => {
             // exit list
             const parent = stackstack.pop();
-            if (!parent) throw new Error("ERR_no_exit");
+            if (!parent) error("ERR_no_exit");
             const list = stack;
             stack = parent;
             stack.push(list);
@@ -304,17 +343,19 @@ function execute(level: Token[]): Token[] {
             const index = getnum();
             const idx = stack.length - index - 1;
             const val = stack[idx];
-            if (val === undefined) throw new Error("ERR_index_out_of_range");
+            if (val === undefined) error("ERR_index_out_of_range");
             put(val);
         },
         "!": () => put(!getbool()),
         "true": () => put(true),
         "false": () => put(false),
+        "setvar": () => scope.set(getnum(), get()),
+        "getvar": () => scope.get(getnum()) ?? error("ERR_no_var"),
     };
     try {
         for (const token of [...level].reverse()) {
             const xc = executors[token];
-            if (!xc) throw new Error(`execution not implemented for token: ${token}`);
+            if (!xc) error(`execution not implemented for token: ${token}`);
             xc();
         }
 
