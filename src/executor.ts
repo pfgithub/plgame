@@ -1,5 +1,5 @@
 export type CodeExecutionResult =
-    | {ok: true, result: number[], renderedResult?: string, executionTimeMs?: number}
+    | {ok: true, result: number[], renderedResult: string, executionTimeMs?: number}
     | {ok: false, error: Error, executionTimeMs?: number};
 
 export type CodeRunResult = {
@@ -7,10 +7,16 @@ export type CodeRunResult = {
     renderings: string[],
 };
 
+export type CodeRunOptions = {
+    stopAtFirstFailureFrom: number,
+    expectedResults: number[][],
+};
+
 export function runCode(
     code: string,
     inputs: number[][],
     valuesToRender: number[][] = [],
+    options?: CodeRunOptions,
 ): Promise<CodeRunResult> {
     const EXECUTION_TIMEOUT_MS = 1_000;
     const SETUP_TIMEOUT_MS = 2_000;
@@ -57,6 +63,7 @@ export function runCode(
                 code: string,
                 inputs: number[][],
                 valuesToRender: number[][],
+                options?: CodeRunOptions,
                 timeoutMs: number,
             };
 
@@ -97,10 +104,11 @@ export function runCode(
                 };
 
                 self.addEventListener("message", async (event) => {
-                    const {code, inputs, valuesToRender} = event.data as {
+                    const {code, inputs, valuesToRender, options} = event.data as {
                         code: string,
                         inputs: number[][],
                         valuesToRender: number[][],
+                        options?: CodeRunOptions,
                     };
 
                     try {
@@ -116,26 +124,28 @@ export function runCode(
 
 ${code}
 
-if (typeof execute !== "function") {
-  throw new Error(
-    "The submitted code must define a function named execute(input)."
-  );
-}
-
 if (typeof render !== "function") {
   throw new Error(
     "The submitted code must define a function named render(tokens)."
   );
 }
 
-return {execute, render};
+return {
+  execute: typeof execute === "function" ? execute : undefined,
+  render
+};
 `,
                         ) as () => {
-                            execute: (input: number[]) => unknown,
+                            execute?: (input: number[]) => unknown,
                             render: (tokens: number[]) => unknown,
                         };
 
                         const {execute, render} = createFunctions();
+                        if (inputs.length > 0 && execute === undefined) {
+                            throw new Error(
+                                "The submitted code must define a function named execute(input).",
+                            );
+                        }
                         const renderTokens = async (tokens: number[]): Promise<string> => {
                             const rendered = await render([...tokens]);
                             if (typeof rendered !== "string") {
@@ -153,10 +163,24 @@ return {execute, render};
                             | {ok: true, result: number[], renderedResult: string, executionTimeMs: number}
                             | {ok: false, error: SerializedError, executionTimeMs: number}
                         > = [];
+                        let earlierLevelFailed = false;
 
-                        for (const input of inputs) {
+                        for (const [inputIndex, input] of inputs.entries()) {
+                            if (
+                                options
+                                && inputIndex === options.stopAtFirstFailureFrom
+                                && earlierLevelFailed
+                            ) {
+                                break;
+                            }
+
                             const executionStartedAt = performance.now();
                             try {
+                                if (execute === undefined) {
+                                    throw new Error(
+                                        "The submitted code must define a function named execute(input).",
+                                    );
+                                }
                                 const result = await execute(input);
                                 const executionTimeMs = performance.now() - executionStartedAt;
 
@@ -178,12 +202,33 @@ return {execute, render};
                                     renderedResult: await renderTokens(result),
                                     executionTimeMs,
                                 });
+
+                                const expected = options?.expectedResults[inputIndex];
+                                const resultFailed = expected !== undefined && (
+                                    result.length !== expected.length
+                                    || result.some((value, index) => value !== expected[index])
+                                );
+                                earlierLevelFailed ||= resultFailed;
+                                if (
+                                    options
+                                    && inputIndex >= options.stopAtFirstFailureFrom
+                                    && resultFailed
+                                ) {
+                                    break;
+                                }
                             } catch (error) {
+                                earlierLevelFailed = true;
                                 results.push({
                                     ok: false,
                                     error: serializeError(error),
                                     executionTimeMs: performance.now() - executionStartedAt,
                                 });
+                                if (
+                                    options
+                                    && inputIndex >= options.stopAtFirstFailureFrom
+                                ) {
+                                    break;
+                                }
                             }
                         }
 
@@ -276,6 +321,7 @@ return {execute, render};
                         code: request.code,
                         inputs: request.inputs,
                         valuesToRender: request.valuesToRender,
+                        options: request.options,
                     });
                 },
                 {once: true},
@@ -315,6 +361,7 @@ return {execute, render};
                     code,
                     inputs,
                     valuesToRender,
+                    options,
                     timeoutMs: EXECUTION_TIMEOUT_MS,
                 },
                 "*",
@@ -393,4 +440,9 @@ return {execute, render};
 
         document.body.appendChild(iframe);
     });
+}
+
+export async function renderCode(code: string, values: number[][]): Promise<string[]> {
+    const result = await runCode(code, [], values);
+    return result.renderings;
 }

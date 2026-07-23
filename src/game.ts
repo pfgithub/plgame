@@ -3,7 +3,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { keymap } from "@codemirror/view";
 import { basicSetup, EditorView } from "codemirror";
 import { renderDiff } from "./diff-renderer.ts";
-import { runCode } from "./executor.ts";
+import { renderCode, runCode } from "./executor.ts";
 import {
     DEFAULT_CODE,
     type LevelFailure,
@@ -36,6 +36,7 @@ const previousButton = element<HTMLButtonElement>("previous-level");
 const nextButton = element<HTMLButtonElement>("next-level");
 const latestButton = element<HTMLButtonElement>("latest-level");
 const runButton = element<HTMLButtonElement>("run");
+const refreshPreviewsButton = element<HTMLButtonElement>("refresh-previews");
 const levelNumber = element<HTMLHeadingElement>("level-number");
 const toggleLevelsButton = element<HTMLButtonElement>("toggle-levels");
 const levelNavigation = element<HTMLElement>("level-navigation");
@@ -72,12 +73,12 @@ function savedCode(): string {
 }
 
 let running = false;
+let refreshingPreviews = false;
 let activeMobileTab: MobileTab = "code";
 let levelNavigationExpanded = false;
-let renderedLevels: RenderedLevel[] = levels.map(level => ({
-    input: level.input.join(" "),
-    expected: level.output.join(" "),
-}));
+const renderedLevels: RenderedLevel[] = [];
+let previewError: string | undefined;
+let runError: string | undefined;
 let lastRunFailures = new Map<number, LevelFailure>();
 let lastRunTestedThrough = -1;
 let railWidth = state.railWidth;
@@ -158,6 +159,10 @@ function renderResult(): void {
         status.textContent = "Running…";
         return;
     }
+    if (runError !== undefined) {
+        status.textContent = `Run failed: ${runError}`;
+        return;
+    }
     if (lastRunTestedThrough < 0) {
         status.textContent = "Ready to run.";
         return;
@@ -176,7 +181,7 @@ function renderResult(): void {
         resultDetail.textContent = `Level ${state.levelIndex + 1} failed.`;
         const expectedLabel = document.createElement("strong");
         expectedLabel.textContent = "Expected output";
-        const expected = failure.renderedExpected ?? failure.expected.join(" ");
+        const expected = failure.renderedExpected;
         children.push(expectedLabel, codeBlock(expected));
 
         if (failure.error) {
@@ -184,7 +189,10 @@ function renderResult(): void {
             errorLabel.textContent = "Error";
             children.push(errorLabel, codeBlock(failure.error.message));
         } else {
-            const actual = failure.renderedActual ?? failure.actual?.join(" ") ?? "";
+            const actual = failure.renderedActual;
+            if (actual === undefined) {
+                throw new Error(`Missing rendered output for level ${failure.levelIndex + 1}.`);
+            }
             const actualLabel = document.createElement("strong");
             actualLabel.textContent = "Your code returned";
             const diffLabel = document.createElement("strong");
@@ -199,8 +207,7 @@ function renderResult(): void {
     }
 
     const otherFailures = [...lastRunFailures.values()]
-        .filter(other => other.levelIndex !== state.levelIndex)
-        .sort((left, right) => left.levelIndex - right.levelIndex);
+        .filter(other => other.levelIndex !== state.levelIndex);
     if (otherFailures.length > 0) {
         const otherLabel = document.createElement("p");
         otherLabel.textContent = "Other failing levels:";
@@ -268,17 +275,24 @@ function renderLevel(): void {
     levelNumber.textContent = `Level ${state.levelIndex + 1}`;
     if (itemState === "unlocked") delete levelNumber.dataset.levelState;
     else levelNumber.dataset.levelState = itemState;
-    inputTokens.textContent = rendered?.input ?? level.input.join(" ");
-    outputTokens.textContent = rendered?.expected ?? level.output.join(" ");
+    const unavailable = previewError === undefined
+        ? "Rendering preview…"
+        : `Preview unavailable: ${previewError}`;
+    inputTokens.textContent = rendered?.input ?? unavailable;
+    outputTokens.textContent = rendered?.expected ?? unavailable;
 }
 
 function render(): void {
     previousButton.disabled = running || state.levelIndex === 0;
     nextButton.disabled = running || state.levelIndex === state.highestLevelIndex;
     latestButton.disabled = running || state.levelIndex === state.highestLevelIndex;
-    runButton.disabled = running;
+    runButton.disabled = running || refreshingPreviews;
     runButton.textContent = running ? "Running…" : "Run";
     toggleLevelsButton.disabled = running;
+    refreshPreviewsButton.disabled = running || refreshingPreviews;
+    refreshPreviewsButton.textContent = refreshingPreviews
+        ? "Refreshing…"
+        : "Refresh previews";
     toggleLevelsButton.setAttribute("aria-expanded", String(levelNavigationExpanded));
     toggleLevelsButton.setAttribute(
         "aria-label",
@@ -305,36 +319,78 @@ function goToLevel(levelIndex: number): void {
 }
 
 async function runGame(): Promise<void> {
-    if (running) return;
+    if (running || refreshingPreviews) return;
     running = true;
+    runError = undefined;
     render();
 
-    const result = await runProgression(
-        editor.state.doc.toString(),
-        levels,
-        state.levelIndex,
-        state.highestLevelIndex,
-        runCode,
-    );
+    try {
+        const result = await runProgression(
+            editor.state.doc.toString(),
+            levels,
+            state.levelIndex,
+            state.highestLevelIndex,
+            runCode,
+        );
 
-    const failures = result.levelFailures.filter(
-        (failure): failure is LevelFailure => failure !== undefined,
-    );
-    lastRunFailures = new Map(failures.map(failure => [failure.levelIndex, failure]));
-    renderedLevels = result.renderedLevels;
-    state.highestLevelIndex = Math.max(state.highestLevelIndex, result.levelIndex);
-    lastRunTestedThrough = state.highestLevelIndex;
-    running = false;
+        const failures = result.levelFailures.filter(
+            (failure): failure is LevelFailure => failure !== undefined,
+        );
+        lastRunFailures = new Map(failures.map(failure => [failure.levelIndex, failure]));
+        result.renderedLevels.forEach((renderedLevel, index) => {
+            renderedLevels[index] = renderedLevel;
+        });
+        previewError = undefined;
+        state.highestLevelIndex = Math.max(state.highestLevelIndex, result.levelIndex);
+        lastRunTestedThrough = state.highestLevelIndex;
 
-    saveState();
-    activeMobileTab = "results";
+        saveState();
+        activeMobileTab = "results";
+    } catch (error) {
+        runError = error instanceof Error ? error.message : String(error);
+    } finally {
+        running = false;
+        render();
+    }
+}
+
+async function refreshPreviews(): Promise<void> {
+    if (running || refreshingPreviews) return;
+    refreshingPreviews = true;
+    previewError = undefined;
     render();
+
+    const unlockedLevels = levels.slice(0, state.highestLevelIndex + 1);
+    try {
+        const renderings = await renderCode(
+            editor.state.doc.toString(),
+            unlockedLevels.flatMap(level => [level.input, level.output]),
+        );
+        if (renderings.length !== unlockedLevels.length * 2) {
+            throw new Error("The code renderer returned an unexpected number of previews.");
+        }
+        for (const [index] of unlockedLevels.entries()) {
+            renderedLevels[index] = {
+                input: renderings[index * 2]!,
+                expected: renderings[index * 2 + 1]!,
+                ...(renderedLevels[index]?.executionTimeMs === undefined
+                    ? {}
+                    : {executionTimeMs: renderedLevels[index].executionTimeMs}),
+            };
+        }
+    } catch (error) {
+        previewError = error instanceof Error ? error.message : String(error);
+    } finally {
+        refreshingPreviews = false;
+        render();
+    }
 }
 
 previousButton.addEventListener("click", () => goToLevel(state.levelIndex - 1));
 nextButton.addEventListener("click", () => goToLevel(state.levelIndex + 1));
 latestButton.addEventListener("click", () => goToLevel(state.highestLevelIndex));
 runButton.addEventListener("click", () => void runGame());
+refreshPreviewsButton.addEventListener("click", () => void refreshPreviews());
 toggleLevelsButton.addEventListener("click", () => {
     levelNavigationExpanded = !levelNavigationExpanded;
     render();
@@ -390,3 +446,4 @@ window.addEventListener("resize", () => setRailWidth(railWidth, false));
 narrowScreen.addEventListener("change", () => setMobileTab(activeMobileTab));
 
 render();
+void refreshPreviews();

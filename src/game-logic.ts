@@ -1,5 +1,5 @@
 import type { Level, Token } from "./levels.ts";
-import type { CodeExecutionResult } from "./executor.ts";
+import type { CodeExecutionResult, CodeRunOptions } from "./executor.ts";
 
 export const DEFAULT_CODE = `function render(tokens) {
     return tokens.join(" ");
@@ -18,7 +18,7 @@ export type GameState = {
 export type LevelFailure = {
     levelIndex: number,
     expected: number[],
-    renderedExpected?: string,
+    renderedExpected: string,
     actual?: number[],
     renderedActual?: string,
     error?: Error,
@@ -39,7 +39,8 @@ type Runner = (
     code: string,
     inputs: number[][],
     valuesToRender: number[][],
-) => Promise<CodeExecutionResult[] | {executions: CodeExecutionResult[], renderings: string[]}>;
+    options?: CodeRunOptions,
+) => Promise<{executions: CodeExecutionResult[], renderings: string[]}>;
 
 const STORAGE_VERSION = 5;
 const DEFAULT_RAIL_WIDTH = 416;
@@ -68,16 +69,15 @@ export async function runProgression(
         input: level.input,
         expected: level.output,
     }));
-    const renderedLevels: RenderedLevel[] = runnableLevels.map(level => ({
-        input: level.input.join(" "),
-        expected: level.expected.join(" "),
-    }));
+    const renderedLevels: RenderedLevel[] = [];
     const levelFailures: Array<LevelFailure | undefined> = Array.from({
         length: levels.length,
     });
+    const executedLevels = Array.from({length: levels.length}, () => false);
 
     async function runLevels(
         levelsToRun: Array<{levelIndex: number, input: Token[], expected: Token[]}>,
+        options?: CodeRunOptions,
     ): Promise<void> {
         let executions: CodeExecutionResult[];
         let renderings: string[];
@@ -86,44 +86,39 @@ export async function runProgression(
                 code,
                 levelsToRun.map(level => level.input),
                 levelsToRun.flatMap(level => [level.input, level.expected]),
+                options,
             );
-            if (Array.isArray(run)) {
-                executions = run;
-                renderings = levelsToRun.flatMap(level => [
-                    level.input.join(" "),
-                    level.expected.join(" "),
-                ]);
-            } else {
-                executions = run.executions;
-                renderings = run.renderings;
-            }
+            executions = run.executions;
+            renderings = run.renderings;
         } catch (error) {
-            const executionError = error instanceof Error ? error : new Error(String(error));
-            executions = levelsToRun.map(() => ({ok: false, error: executionError}));
-            renderings = levelsToRun.flatMap(level => [
-                level.input.join(" "),
-                level.expected.join(" "),
-            ]);
+            throw error instanceof Error ? error : new Error(String(error));
         }
-        if (executions.length !== levelsToRun.length) {
+        if (
+            executions.length !== levelsToRun.length
+            && (
+                options === undefined
+                || executions.length < options.stopAtFirstFailureFrom
+            )
+        ) {
             throw new Error("The code runner returned an unexpected number of results.");
         }
         if (renderings.length !== levelsToRun.length * 2) {
             throw new Error("The code runner returned an unexpected number of renderings.");
         }
 
-        levelsToRun.forEach((level, index) => {
+        levelsToRun.slice(0, executions.length).forEach((level, index) => {
             const execution = executions[index];
             if (!execution) {
                 throw new Error(`Missing execution result for level ${level.levelIndex + 1}.`);
             }
             const executionTimeMs = execution.executionTimeMs;
             const renderedLevel: RenderedLevel = {
-                input: renderings[index * 2] ?? level.input.join(" "),
-                expected: renderings[index * 2 + 1] ?? level.expected.join(" "),
+                input: renderings[index * 2]!,
+                expected: renderings[index * 2 + 1]!,
                 ...(executionTimeMs === undefined ? {} : {executionTimeMs}),
             };
             renderedLevels[level.levelIndex] = renderedLevel;
+            executedLevels[level.levelIndex] = true;
 
             if (!execution.ok) {
                 levelFailures[level.levelIndex] = {
@@ -144,8 +139,12 @@ export async function runProgression(
         });
     }
 
-    const unlockedLevels = runnableLevels.slice(0, highestLevelIndex + 1);
-    if (unlockedLevels.length > 0) await runLevels(unlockedLevels);
+    if (runnableLevels.length > 0) {
+        await runLevels(runnableLevels, {
+            stopAtFirstFailureFrom: highestLevelIndex + 1,
+            expectedResults: runnableLevels.map(level => level.expected),
+        });
+    }
 
     const pastFailures = levelFailures
         .slice(0, currentLevelIndex)
@@ -186,13 +185,6 @@ export async function runProgression(
     }
 
     for (let levelIndex = highestLevelIndex + 1; levelIndex < levels.length; levelIndex++) {
-        const level = runnableLevels[levelIndex];
-        if (!level) throw new Error(`Missing level ${levelIndex + 1}.`);
-        await runLevels([{
-            levelIndex,
-            input: level.input,
-            expected: level.expected,
-        }]);
         const failure = levelFailures[levelIndex];
         if (failure) {
             return {
@@ -203,6 +195,10 @@ export async function runProgression(
                 levelFailures,
                 renderedLevels,
             };
+        }
+
+        if (!executedLevels[levelIndex]) {
+            throw new Error(`Missing execution result for level ${levelIndex + 1}.`);
         }
     }
 

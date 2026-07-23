@@ -120,6 +120,25 @@
             margin-top: 0;
         }
 
+        .preview-heading {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .preview-heading h3 {
+            margin-block: 1em;
+        }
+
+        .preview-info {
+            font-size: 0.8rem;
+            opacity: 0.75;
+        }
+
+        #refresh-previews {
+            margin-left: auto;
+        }
+
         #level-navigation {
             flex: 1;
             min-height: 0;
@@ -328,9 +347,22 @@
 
             <section id="challenge-panel" role="tabpanel" aria-labelledby="challenge-tab">
                 <h2>Challenge</h2>
-                <h3>Input</h3>
+                <div class="preview-heading">
+                    <h3>Input</h3>
+                    <span
+                        class="preview-info"
+                        title="This preview is rendered using your code's render() function."
+                    >ⓘ Rendered with your <code>render()</code></span>
+                    <button id="refresh-previews" type="button">Refresh previews</button>
+                </div>
                 <pre><code id="level-input"></code></pre>
-                <h3>Expected output</h3>
+                <div class="preview-heading">
+                    <h3>Expected output</h3>
+                    <span
+                        class="preview-info"
+                        title="This preview is rendered using your code's render() function."
+                    >ⓘ Rendered with your <code>render()</code></span>
+                </div>
                 <pre><code id="level-output"></code></pre>
             </section>
 
