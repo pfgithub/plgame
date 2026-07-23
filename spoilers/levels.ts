@@ -127,6 +127,18 @@ const levels: Level[] = [
     level("1#\nincr", "2#"),
     // variables
     level("setvar 0# 5142#", ""),
+    level("setvar 0# 5142#\ngetvar 0#", "5142#"), // this is the first level that it gets difficult to solve using just string replacements
+    level("setvar 0# 4321#\nsetvar 0# 1234#\ngetvar 0#", "1234#"),
+    level("setvar 0# 3054#\nsetvar 0# 1433#\nsetvar 0# 2353#\ngetvar 0#", "2353#"),
+    level("setvar 0# 2353#\nsetvar 1# 1433#\nsetvar 2# 3054#\ngetvar 0#", "2353#"),
+    level("setvar 0# 2353#\nsetvar 1# 1433#\nsetvar 2# 3054#\ngetvar 1#", "1433#"),
+    level("setvar 0# 2353#\nsetvar 1# 1433#\nsetvar 2# 3054#\ngetvar 2#", "3054#"),
+    level("setvar 0# 2353#\nsetvar 1# 1433#\nsetvar 2# 3054#", ""),
+    level("setvar 0# 2353#\nsetvar 1# 1433#\nsetvar 2# 3054#\ngetvar 2#\ngetvar 1#\ngetvar 0#", "2353# 1433# 3054#"),
+    level("setvar 0# 2353#\nsetvar 1# 1433#\nsetvar 2# 3054#\ngetvar 0#\ngetvar 1#\ngetvar 2#", "3054# 1433# 2353#"),
+    level("setvar 0# 5424# getvar 0# setvar 0# 0432#", "0432#"),
+    // variables no newline
+    level("setvar 0# 5142#", ""),
     level("getvar 0# setvar 0# 5142#", "5142#"),
     level("getvar 0# setvar 0# 1234# setvar 0# 4321#", "1234#"),
     level("getvar 0# setvar 0# 2353# setvar 0# 1433# setvar 0# 3054#", "2353#"),
@@ -137,8 +149,6 @@ const levels: Level[] = [
     level("getvar 0# getvar 1# getvar 2# setvar 0# 2353# setvar 1# 1433# setvar 2# 3054#", "2353# 1433# 3054#"),
     level("getvar 2# getvar 1# getvar 0# setvar 0# 2353# setvar 1# 1433# setvar 2# 3054#", "3054# 1433# 2353#"),
     level("setvar 0# 5424# getvar 0# setvar 0# 0432#", "0432#"),
-    // variables newline
-    level("setvar 0# 5424#\ngetvar 0#\nsetvar 0# 0432#", "5424#"),
 
     // copy input to output
     level("1#", "1#"),
