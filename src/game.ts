@@ -499,6 +499,35 @@ function codeBlock(text: string, renderedOutput = false): HTMLPreElement {
     return pre;
 }
 
+function executeResultLabel(): HTMLDivElement {
+    const label = document.createElement("div");
+    label.className = "mb-1 flex items-center gap-2";
+
+    const heading = document.createElement("strong");
+    heading.textContent = "Your code returned";
+
+    const source = document.createElement("span");
+    source.className =
+        "inline-flex items-center gap-1 text-[0.625rem] text-zinc-600 [&_.lucide]:size-3";
+    source.title = "This output is returned by your code's execute() function.";
+    const sourceText = document.createElement("span");
+    const code = document.createElement("code");
+    code.className = "text-zinc-500";
+    code.textContent = "execute()";
+    sourceText.append("via ", code);
+    source.append(
+        createIconElement(Info, {
+            class: "lucide lucide-info",
+            height: 12,
+            width: 12,
+        }),
+        sourceText,
+    );
+
+    label.append(heading, source);
+    return label;
+}
+
 function setMobileTab(tab: MobileTab): void {
     activeMobileTab = tab;
     workspace.dataset.mobileTab = tab;
@@ -532,8 +561,7 @@ function renderChallengeResult(): void {
         return;
     }
     if (lastRunTestedThrough < 0) {
-        const label = document.createElement("strong");
-        label.textContent = "Your code returned";
+        const label = executeResultLabel();
         const detail = document.createElement("p");
         detail.textContent = "Run your code to see what it returns.";
         challengeResult.replaceChildren(label, detail);
@@ -541,8 +569,7 @@ function renderChallengeResult(): void {
     }
 
     const failure = lastRunFailures.get(state.levelIndex);
-    const actualLabel = document.createElement("strong");
-    actualLabel.textContent = "Your code returned";
+    const actualLabel = executeResultLabel();
     const children: HTMLElement[] = [actualLabel];
     if (resultsOutOfDate) children.push(challengeResultsOutdated);
 
