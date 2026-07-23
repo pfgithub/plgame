@@ -154,17 +154,34 @@
                 role="tabpanel"
                 aria-labelledby="challenge-tab"
             >
-                <div class="mb-2 flex items-center justify-between">
+                <div class="mb-2 flex items-center justify-between gap-2">
                     <h2 class="text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-zinc-500">Challenge</h2>
-                    <button
-                        id="refresh-previews"
-                        class="h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-[0.6875rem] text-zinc-400 hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 disabled:cursor-not-allowed disabled:opacity-40"
-                        type="button"
-                    >Refresh</button>
+                    <div class="flex items-center gap-2">
+                        <label
+                            class="flex cursor-pointer items-center gap-1.5 text-[0.625rem] text-zinc-500 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40"
+                            title="Switch token displays between your render() function and JSON.stringify()."
+                        >
+                            <span id="preview-render-mode-label">render()</span>
+                            <input
+                                id="preview-render-mode"
+                                class="peer sr-only"
+                                type="checkbox"
+                                role="switch"
+                                aria-labelledby="preview-render-mode-label"
+                            >
+                            <span class="relative h-4 w-7 rounded-full border border-zinc-700 bg-zinc-900 peer-checked:border-violet-400 peer-checked:bg-violet-400/20 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-violet-400 peer-disabled:cursor-not-allowed after:absolute after:left-0.5 after:top-0.5 after:size-2.5 after:rounded-full after:bg-zinc-500 peer-checked:after:translate-x-3 peer-checked:after:bg-violet-300"></span>
+                        </label>
+                        <button
+                            id="refresh-previews"
+                            class="h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-[0.6875rem] text-zinc-400 hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 disabled:cursor-not-allowed disabled:opacity-40"
+                            type="button"
+                        >Refresh</button>
+                    </div>
                 </div>
                 <div class="mb-1 flex items-center gap-2">
                     <h3 class="text-xs font-semibold text-zinc-200">Input</h3>
                     <span
+                        data-preview-render-description
                         class="inline-flex items-center gap-1 text-[0.625rem] text-zinc-600 [&_.lucide]:size-3"
                         title="This preview is rendered using your code's render() function."
                     >
@@ -176,6 +193,7 @@
                 <div class="mb-1 flex items-center gap-2">
                     <h3 class="text-xs font-semibold text-zinc-200">Expected output</h3>
                     <span
+                        data-preview-render-description
                         class="inline-flex items-center gap-1 text-[0.625rem] text-zinc-600 [&_.lucide]:size-3"
                         title="This preview is rendered using your code's render() function."
                     >
@@ -207,6 +225,7 @@
                         <div class="mb-1 flex items-center gap-2">
                             <h3 class="text-xs font-semibold text-zinc-200">Your code returned</h3>
                             <span
+                                data-actual-render-description
                                 class="inline-flex items-center gap-1 text-[0.625rem] text-zinc-600 [&_.lucide]:size-3"
                                 title="This output is returned by your code's execute() function."
                             >
@@ -228,6 +247,14 @@
                     >
                         <div class="mb-1 flex items-center gap-2">
                             <h3 class="text-xs font-semibold text-zinc-200">Diff</h3>
+                        </div>
+                        <div
+                            id="challenge-render-collision-warning"
+                            class="mb-3 rounded border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-amber-200"
+                            hidden
+                        >
+                            <strong>Render warning.</strong>
+                            Your <code>render()</code> function displays the expected output and your output identically, even though their token arrays differ. Switch to <code>JSON.stringify()</code> to see the difference.
                         </div>
                         <p id="challenge-diff-message" class="my-2" hidden></p>
                         <div

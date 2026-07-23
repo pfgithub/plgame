@@ -44,6 +44,7 @@ const levels: Level[] = Array.from(
 
 const STORAGE_KEY = "plgame-state";
 const CODE_VERSIONS_STORAGE_KEY = "plgame-code-versions";
+const PREVIEW_RENDER_MODE_STORAGE_KEY = "plgame-preview-render-mode";
 const CODE_VERSIONS_STORAGE_VERSION = 1;
 const DEFAULT_CODE_VERSION_ID = "default-code";
 const MIN_RAIL_WIDTH = 288;
@@ -52,6 +53,7 @@ const DIVIDER_WIDTH = 8;
 const RAIL_RESIZE_STEP = 24;
 
 type MobileTab = "challenge" | "console" | "code";
+type PreviewRenderMode = "player" | "json";
 
 type CustomCodeVersion = {
     id: string,
@@ -107,6 +109,13 @@ const nextButton = element<HTMLButtonElement>("next-level");
 const latestButton = element<HTMLButtonElement>("latest-level");
 const runButton = element<HTMLButtonElement>("run");
 const refreshPreviewsButton = element<HTMLButtonElement>("refresh-previews");
+const previewRenderModeInput = element<HTMLInputElement>("preview-render-mode");
+const previewRenderDescriptions = document.querySelectorAll<HTMLElement>(
+    "[data-preview-render-description]",
+);
+const actualRenderDescriptions = document.querySelectorAll<HTMLElement>(
+    "[data-actual-render-description]",
+);
 const levelButton = element<HTMLButtonElement>("level-number");
 const levelButtonLabel = element<HTMLSpanElement>("level-number-label");
 const levelNavigation = element<HTMLElement>("level-navigation");
@@ -127,6 +136,9 @@ const challengeActualSection = element<HTMLElement>("challenge-actual-section");
 const challengeActualMessage = element<HTMLParagraphElement>("challenge-actual-message");
 const challengeActualOutput = element<HTMLPreElement>("challenge-actual-output");
 const challengeActualOutputCode = element<HTMLElement>("challenge-actual-output-code");
+const challengeRenderCollisionWarning = element<HTMLDivElement>(
+    "challenge-render-collision-warning",
+);
 const challengeDiffSection = element<HTMLElement>("challenge-diff-section");
 const challengeDiffMessage = element<HTMLParagraphElement>("challenge-diff-message");
 const challengeDiffOutput = element<HTMLDivElement>("challenge-diff-output");
@@ -289,8 +301,27 @@ function selectedCodeVersion(): CodeVersion {
     return version;
 }
 
+function loadPreviewRenderMode(): PreviewRenderMode {
+    try {
+        return localStorage.getItem(PREVIEW_RENDER_MODE_STORAGE_KEY) === "json"
+            ? "json"
+            : "player";
+    } catch {
+        return "player";
+    }
+}
+
+function savePreviewRenderMode(): void {
+    try {
+        localStorage.setItem(PREVIEW_RENDER_MODE_STORAGE_KEY, previewRenderMode);
+    } catch {
+        // Storage can be disabled without preventing the game from working.
+    }
+}
+
 let running = false;
 let refreshingPreviews = false;
+let previewRenderMode = loadPreviewRenderMode();
 let activeMobileTab: MobileTab = "code";
 let levelNavigationExpanded = false;
 let settingsExpanded = false;
@@ -563,6 +594,7 @@ function renderChallengeResult(): void {
     challengeActualSection.hidden = true;
     challengeActualMessage.hidden = true;
     challengeActualOutput.hidden = true;
+    challengeRenderCollisionWarning.hidden = true;
     challengeDiffSection.hidden = true;
     challengeDiffMessage.hidden = true;
     challengeDiffOutput.hidden = true;
@@ -591,7 +623,12 @@ function renderChallengeResult(): void {
     if (failure?.error) {
         challengeActualOutputCode.textContent = `Error: ${failure.error.message}`;
     } else {
-        const actual = failure?.renderedActual ?? renderedLevels[state.levelIndex]?.expected;
+        const actual = failure === undefined
+            ? renderTokensForDisplay(
+                    levels[state.levelIndex]?.output,
+                    renderedLevels[state.levelIndex]?.expected,
+                )
+            : renderTokensForDisplay(failure.actual, failure.renderedActual);
         if (actual === undefined) {
             throw new Error(`Missing rendered output for level ${state.levelIndex + 1}.`);
         }
@@ -606,12 +643,17 @@ function renderChallengeResult(): void {
                 "A diff is unavailable because your code returned an error.";
             challengeDiffMessage.hidden = false;
         } else {
-            const actual = failure.renderedActual;
-            if (actual === undefined) {
+            const expected = renderTokensForDisplay(
+                failure.expected,
+                failure.renderedExpected,
+            );
+            const actual = renderTokensForDisplay(failure.actual, failure.renderedActual);
+            if (expected === undefined || actual === undefined) {
                 throw new Error(`Missing rendered output for level ${failure.levelIndex + 1}.`);
             }
+            challengeRenderCollisionWarning.hidden = !hasRenderCollision(failure);
             challengeDiffOutput.replaceChildren(
-                renderDiff(document, failure.renderedExpected, actual),
+                renderDiff(document, expected, actual),
             );
             challengeDiffOutput.hidden = false;
         }
@@ -726,8 +768,62 @@ function renderLevel(): void {
     const unavailable = previewError === undefined
         ? "Rendering preview…"
         : `Preview unavailable: ${previewError}`;
-    inputTokens.textContent = rendered?.input ?? unavailable;
-    outputTokens.textContent = rendered?.expected ?? unavailable;
+    inputTokens.textContent = renderTokensForDisplay(level.input, rendered?.input) ?? unavailable;
+    outputTokens.textContent =
+        renderTokensForDisplay(level.output, rendered?.expected) ?? unavailable;
+}
+
+function renderTokensForDisplay(
+    tokens: number[] | undefined,
+    playerRendering: string | undefined,
+): string | undefined {
+    if (previewRenderMode === "json") {
+        return tokens === undefined ? undefined : JSON.stringify(tokens);
+    }
+    return playerRendering;
+}
+
+function hasRenderCollision(failure: LevelFailure): boolean {
+    return failure.error === undefined
+        && failure.renderedActual !== undefined
+        && failure.renderedExpected === failure.renderedActual;
+}
+
+function renderPreviewModeControls(): void {
+    const usingJson = previewRenderMode === "json";
+    previewRenderModeInput.checked = !usingJson;
+    previewRenderModeInput.disabled = running || refreshingPreviews;
+
+    for (const description of previewRenderDescriptions) {
+        description.title = usingJson
+            ? "This preview is displayed using JSON.stringify()."
+            : "This preview is rendered using your code's render() function.";
+        const label = description.querySelector("span");
+        if (label) {
+            label.replaceChildren(
+                "via ",
+                Object.assign(document.createElement("code"), {
+                    className: "text-zinc-500",
+                    textContent: usingJson ? "JSON.stringify()" : "render()",
+                }),
+            );
+        }
+    }
+    for (const description of actualRenderDescriptions) {
+        description.title = usingJson
+            ? "This output is returned by execute() and displayed using JSON.stringify()."
+            : "This output is returned by execute() and rendered using render().";
+        const label = description.querySelector("span");
+        if (label) {
+            label.replaceChildren(
+                "via ",
+                Object.assign(document.createElement("code"), {
+                    className: "text-zinc-500",
+                    textContent: usingJson ? "JSON.stringify(execute())" : "render(execute())",
+                }),
+            );
+        }
+    }
 }
 
 function renderCodeVersions(): void {
@@ -790,6 +886,7 @@ function render(): void {
     levelButton.disabled = running;
     refreshPreviewsButton.disabled = running || refreshingPreviews;
     refreshPreviewsButton.textContent = "Refresh previews";
+    renderPreviewModeControls();
     levelButton.setAttribute("aria-expanded", String(levelNavigationExpanded));
     levelButton.setAttribute(
         "aria-label",
@@ -907,11 +1004,20 @@ function appendFailureResult(list: HTMLUListElement, failure: LevelFailure): voi
         error.textContent = `Error: ${failure.error.message}`;
         item.append(error);
     } else {
-        const actual = failure.renderedActual;
-        if (actual === undefined) {
+        const expected = renderTokensForDisplay(failure.expected, failure.renderedExpected);
+        const actual = renderTokensForDisplay(failure.actual, failure.renderedActual);
+        if (expected === undefined || actual === undefined) {
             throw new Error(`Missing rendered output for level ${failure.levelIndex + 1}.`);
         }
-        item.append(renderDiff(document, failure.renderedExpected, actual));
+        if (hasRenderCollision(failure)) {
+            const warning = document.createElement("p");
+            warning.className =
+                "mt-2 rounded border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-amber-200";
+            warning.textContent =
+                "Render warning: render() displays the expected output and your output identically even though their token arrays differ.";
+            item.append(warning);
+        }
+        item.append(renderDiff(document, expected, actual));
     }
     list.append(item);
 }
@@ -1153,6 +1259,11 @@ latestButton.addEventListener("click", () => {
 });
 runButton.addEventListener("click", () => void runGame());
 refreshPreviewsButton.addEventListener("click", () => void refreshPreviews());
+previewRenderModeInput.addEventListener("change", () => {
+    previewRenderMode = previewRenderModeInput.checked ? "player" : "json";
+    savePreviewRenderMode();
+    render();
+});
 closeSuccessModalButton.addEventListener("click", () => successModal.close());
 successModal.addEventListener("click", (event) => {
     if (event.target === successModal) successModal.close();
