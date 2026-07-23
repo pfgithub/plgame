@@ -203,13 +203,19 @@ if (typeof render !== "function") {
   );
 }
 
+if (typeof execute !== "function") {
+  throw new Error(
+    "The submitted code must define a function named execute(tokens)."
+  );
+}
+
 return {
-  execute: typeof execute === "function" ? execute : undefined,
+  execute,
   render
 };
 `,
                         ) as (console: typeof capturedConsole) => {
-                            execute?: (input: number[]) => unknown,
+                            execute: (input: number[]) => unknown,
                             render: (tokens: number[]) => unknown,
                         };
 
@@ -223,7 +229,7 @@ return {
                             const rendered = await render([...tokens]);
                             if (typeof rendered !== "string") {
                                 throw new TypeError(
-                                    "render(tokens) must return a string or a Promise<string>.",
+                                    `render(tokens) must return a string or a Promise<string>.\n  Got: ${JSON.stringify(rendered)}`,
                                 );
                             }
                             return rendered;
@@ -252,23 +258,18 @@ return {
                             const executionStartedAt = performance.now();
                             activeLevelIndex = levelIndices[inputIndex];
                             try {
-                                if (execute === undefined) {
-                                    throw new Error(
-                                        "The submitted code must define a function named execute(input).",
-                                    );
-                                }
                                 const result = await execute(input);
                                 const executionTimeMs = performance.now() - executionStartedAt;
 
                                 if (!Array.isArray(result)) {
                                     throw new TypeError(
-                                        "execute(input) must return a number array or a Promise<number[]>.",
+                                        `execute(input) must return a number array or a Promise<number[]>.\n  Got: ${JSON.stringify(result)}`,
                                     );
                                 }
 
                                 if (!result.every(value => typeof value === "number")) {
                                     throw new TypeError(
-                                        "Every value returned by execute(input) must be a number.",
+                                        `Every value returned by execute(input) must be a number.\n  Got: ${JSON.stringify(result)}`,
                                     );
                                 }
 
