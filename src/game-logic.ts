@@ -1,4 +1,5 @@
 import type { Level, Token } from "./levels.ts";
+import type { CodeExecutionResult } from "./executor.ts";
 
 export const DEFAULT_CODE = `function execute(tokens) {
     return tokens;
@@ -26,7 +27,7 @@ export type ProgressionResult
         | {kind: "failed", levelIndex: number, failure: LevelFailure, pastFailures: LevelFailure[]}
         | {kind: "complete", levelIndex: number, pastFailures: LevelFailure[]};
 
-type Runner = (code: string, input: string[]) => Promise<string[]>;
+type Runner = (code: string, inputs: string[][]) => Promise<CodeExecutionResult[]>;
 
 const STORAGE_VERSION = 2;
 
@@ -95,34 +96,54 @@ export async function runProgression(
     currentLevelIndex: number,
     runner: Runner,
 ): Promise<ProgressionResult> {
-    const runLevel = async (levelIndex: number): Promise<LevelFailure | undefined> => {
+    const runnableLevels: Array<{levelIndex: number, input: string[], expected: string[]}> = [];
+    let blockedLevelIndex: number | undefined;
+    for (let levelIndex = 0; levelIndex < levels.length; levelIndex++) {
         const level = levels[levelIndex];
         if (!level) throw new Error(`Missing level ${levelIndex + 1}.`);
-        const input = tokensToNames(level.input, tokenNames);
-        const expected = tokensToNames(level.output, tokenNames);
-        try {
-            const actual = await runner(code, input);
-            if (!arraysEqual(actual, expected)) {
-                return {levelIndex, expected, actual};
-            }
-        } catch (error) {
-            return {
-                levelIndex,
-                expected,
-                error: error instanceof Error ? error : new Error(String(error)),
-            };
+        if (!isLevelNamed(level, tokenNames)) {
+            blockedLevelIndex = levelIndex;
+            break;
+        }
+        runnableLevels.push({
+            levelIndex,
+            input: tokensToNames(level.input, tokenNames),
+            expected: tokensToNames(level.output, tokenNames),
+        });
+    }
+
+    let executions: CodeExecutionResult[];
+    try {
+        executions = runnableLevels.length === 0
+            ? []
+            : await runner(code, runnableLevels.map(level => level.input));
+    } catch (error) {
+        const executionError = error instanceof Error ? error : new Error(String(error));
+        executions = runnableLevels.map(() => ({ok: false, error: executionError}));
+    }
+    if (executions.length !== runnableLevels.length) {
+        throw new Error("The code runner returned an unexpected number of results.");
+    }
+
+    const failures = runnableLevels.map((level, index): LevelFailure | undefined => {
+        const execution = executions[index];
+        if (!execution) throw new Error(`Missing execution result for level ${level.levelIndex + 1}.`);
+        if (!execution.ok) {
+            return {levelIndex: level.levelIndex, expected: level.expected, error: execution.error};
+        }
+        if (!arraysEqual(execution.result, level.expected)) {
+            return {levelIndex: level.levelIndex, expected: level.expected, actual: execution.result};
         }
         return undefined;
-    };
+    });
 
     const pastFailures: LevelFailure[] = [];
     let currentFailure: LevelFailure | undefined;
     for (let levelIndex = 0; levelIndex <= currentLevelIndex; levelIndex++) {
-        const level = levels[levelIndex];
-        if (!level || !isLevelNamed(level, tokenNames)) {
+        if (levelIndex === blockedLevelIndex) {
             return {kind: "blocked", levelIndex, pastFailures};
         }
-        const failure = await runLevel(levelIndex);
+        const failure = failures[levelIndex];
         if (failure && levelIndex < currentLevelIndex) pastFailures.push(failure);
         if (failure && levelIndex === currentLevelIndex) currentFailure = failure;
     }
@@ -135,11 +156,10 @@ export async function runProgression(
     }
 
     for (let levelIndex = currentLevelIndex + 1; levelIndex < levels.length; levelIndex++) {
-        const level = levels[levelIndex];
-        if (!level || !isLevelNamed(level, tokenNames)) {
+        if (levelIndex === blockedLevelIndex) {
             return {kind: "blocked", levelIndex, pastFailures};
         }
-        const failure = await runLevel(levelIndex);
+        const failure = failures[levelIndex];
         if (failure) return {kind: "failed", levelIndex, failure, pastFailures};
     }
 

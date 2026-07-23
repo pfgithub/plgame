@@ -1,8 +1,12 @@
-export function runCode(code: string, input: string[]): Promise<string[]> {
+export type CodeExecutionResult
+    = | {ok: true, result: string[]}
+        | {ok: false, error: Error};
+
+export function runCode(code: string, inputs: string[][]): Promise<CodeExecutionResult[]> {
     const EXECUTION_TIMEOUT_MS = 1_000;
     const SETUP_TIMEOUT_MS = 2_000;
 
-    return new Promise<string[]>((resolve, reject) => {
+    return new Promise<CodeExecutionResult[]>((resolve, reject) => {
         const iframe = document.createElement("iframe");
         const channel = new MessageChannel();
 
@@ -19,7 +23,7 @@ export function runCode(code: string, input: string[]): Promise<string[]> {
             iframe.remove();
         };
 
-        const succeed = (result: string[]): void => {
+        const succeed = (result: CodeExecutionResult[]): void => {
             if (settled) return;
             settled = true;
             cleanup();
@@ -42,7 +46,7 @@ export function runCode(code: string, input: string[]): Promise<string[]> {
             type RunRequest = {
                 type: "run",
                 code: string,
-                input: string[],
+                inputs: string[][],
                 timeoutMs: number,
             };
 
@@ -55,7 +59,10 @@ export function runCode(code: string, input: string[]): Promise<string[]> {
             type WorkerResponse
                 = | {
                     ok: true,
-                    result: string[],
+                    results: Array<
+                        | {ok: true, result: string[]}
+                        | {ok: false, error: SerializedError}
+                    >,
                 }
                 | {
                     ok: false,
@@ -79,9 +86,9 @@ export function runCode(code: string, input: string[]): Promise<string[]> {
                 };
 
                 self.addEventListener("message", async (event) => {
-                    const {code, input} = event.data as {
+                    const {code, inputs} = event.data as {
                         code: string,
-                        input: string[],
+                        inputs: string[][],
                     };
 
                     try {
@@ -108,23 +115,36 @@ return execute;
                         ) as () => (input: string[]) => unknown;
 
                         const execute = createExecute();
-                        const result = await execute(input);
+                        const results: Array<
+                            | {ok: true, result: string[]}
+                            | {ok: false, error: SerializedError}
+                        > = [];
 
-                        if (!Array.isArray(result)) {
-                            throw new TypeError(
-                                "execute(input) must return a string array or a Promise<string[]>.",
-                            );
-                        }
+                        for (const input of inputs) {
+                            try {
+                                const result = await execute(input);
 
-                        if (!result.every(value => typeof value === "string")) {
-                            throw new TypeError(
-                                "Every value returned by execute(input) must be a string.",
-                            );
+                                if (!Array.isArray(result)) {
+                                    throw new TypeError(
+                                        "execute(input) must return a string array or a Promise<string[]>.",
+                                    );
+                                }
+
+                                if (!result.every(value => typeof value === "string")) {
+                                    throw new TypeError(
+                                        "Every value returned by execute(input) must be a string.",
+                                    );
+                                }
+
+                                results.push({ok: true, result});
+                            } catch (error) {
+                                results.push({ok: false, error: serializeError(error)});
+                            }
                         }
 
                         const response: WorkerResponse = {
                             ok: true,
-                            result,
+                            results,
                         };
 
                         self.postMessage(response);
@@ -208,7 +228,7 @@ return execute;
 
                     worker.postMessage({
                         code: request.code,
-                        input: request.input,
+                        inputs: request.inputs,
                     });
                 },
                 {once: true},
@@ -246,7 +266,7 @@ return execute;
                 {
                     type: "run",
                     code,
-                    input,
+                    inputs,
                     timeoutMs: EXECUTION_TIMEOUT_MS,
                 },
                 "*",
@@ -260,7 +280,17 @@ return execute;
             const response = event.data as
                 | {
                     ok: true,
-                    result: string[],
+                    results: Array<
+                        | {ok: true, result: string[]}
+                        | {
+                            ok: false,
+                            error: {
+                                name?: string,
+                                message?: string,
+                                stack?: string,
+                            },
+                        }
+                    >,
                 }
                 | {
                     ok: false,
@@ -272,7 +302,14 @@ return execute;
                 };
 
             if (response?.ok === true) {
-                succeed(response.result);
+                succeed(response.results.map((execution) => {
+                    if (execution.ok) return execution;
+
+                    const error = new Error(execution.error.message ?? "Code execution failed.");
+                    error.name = execution.error.name ?? "ExecutionError";
+                    if (execution.error.stack) error.stack = execution.error.stack;
+                    return {ok: false, error};
+                }));
                 return;
             }
 

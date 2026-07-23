@@ -48,32 +48,43 @@ describe("progression", () => {
         level(["a", "a"], ["a", "a"]),
         level(["b"], ["b"]),
     ];
+    const echoRunner = async (_code: string, inputs: string[][]) => inputs.map(
+        input => ({ok: true as const, result: input}),
+    );
 
     test("stops at a future level with an unnamed token", async () => {
-        const result = await runProgression("code", {a: "same"}, sampleLevels, 0, async (_code, input) => input);
+        const result = await runProgression("code", {a: "same"}, sampleLevels, 0, echoRunner);
         expect(result).toEqual({kind: "blocked", levelIndex: 2, pastFailures: []});
     });
 
     test("reports earlier failures without leaving the current level", async () => {
         let calls = 0;
-        const result = await runProgression("code", {a: "same", b: "other"}, sampleLevels, 2, async (_code, input) => {
+        const result = await runProgression("code", {a: "same", b: "other"}, sampleLevels, 2, async (_code, inputs) => {
             calls++;
-            return calls === 2 ? [] : input;
+            return inputs.map((input, index) => ({
+                ok: true,
+                result: index === 1 ? [] : input,
+            }));
         });
         expect(result).toEqual({
             kind: "past-failures",
             levelIndex: 2,
             pastFailures: [{levelIndex: 1, expected: ["same", "same"], actual: []}],
         });
-        expect(calls).toBe(3);
+        expect(calls).toBe(1);
     });
 
     test("keeps the current level selected when it fails", async () => {
-        let calls = 0;
-        const result = await runProgression("code", {a: "same", b: "other"}, sampleLevels, 1, async (_code, input) => {
-            calls++;
-            return calls === 2 ? [] : input;
-        });
+        const result = await runProgression(
+            "code",
+            {a: "same", b: "other"},
+            sampleLevels,
+            1,
+            async (_code, inputs) => inputs.map((input, index) => ({
+                ok: true,
+                result: index === 1 ? [] : input,
+            })),
+        );
         expect(result).toEqual({
             kind: "failed",
             levelIndex: 1,
@@ -83,21 +94,34 @@ describe("progression", () => {
     });
 
     test("continues into named future levels and reports completion", async () => {
-        const result = await runProgression("code", {a: "same", b: "other"}, sampleLevels, 0, async (_code, input) => input);
+        const result = await runProgression("code", {a: "same", b: "other"}, sampleLevels, 0, echoRunner);
         expect(result).toEqual({kind: "complete", levelIndex: 2, pastFailures: []});
     });
 
     test("reports runner errors at their level", async () => {
         const failure = new Error("boom");
-        const result = await runProgression("code", {a: "same", b: "other"}, sampleLevels, 0, async () => {
-            throw failure;
-        });
+        const result = await runProgression(
+            "code",
+            {a: "same", b: "other"},
+            sampleLevels,
+            0,
+            async (_code, inputs) => inputs.map(() => ({ok: false, error: failure})),
+        );
         expect(result).toEqual({
             kind: "failed",
             levelIndex: 0,
             failure: {levelIndex: 0, expected: ["same"], error: failure},
             pastFailures: [],
         });
+    });
+
+    test("runs every named level in one batch", async () => {
+        let receivedInputs: string[][] | undefined;
+        await runProgression("code", {a: "same", b: "other"}, sampleLevels, 0, async (_code, inputs) => {
+            receivedInputs = inputs;
+            return inputs.map(input => ({ok: true, result: input}));
+        });
+        expect(receivedInputs).toEqual([["same"], ["same", "same"], ["other"]]);
     });
 });
 
