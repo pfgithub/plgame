@@ -54,11 +54,29 @@
         }
 
         #code-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
             min-height: 0;
             padding: 1rem;
         }
 
-        #editor, .cm-editor {
+        #code-version-toolbar {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        #code-version {
+            min-width: 0;
+            flex: 1;
+        }
+
+        #editor {
+            min-height: 0;
+            flex: 1;
+        }
+
+        .cm-editor {
             height: 100%;
         }
 
@@ -263,6 +281,10 @@
                 display: block;
             }
 
+            main[data-mobile-tab="code"] #code-panel {
+                display: flex;
+            }
+
             main[data-browsing="true"] #mobile-tabs,
             main[data-browsing="true"] #code-panel,
             main[data-browsing="true"] #challenge-panel,
@@ -283,6 +305,12 @@
 <body>
     <main id="workspace" data-mobile-tab="code">
         <section id="code-panel" role="tabpanel" aria-labelledby="code-tab">
+            <div id="code-version-toolbar">
+                <select id="code-version" aria-label="Code version"></select>
+                <button id="add-code-version" type="button" aria-label="Create code version">+</button>
+                <button id="rename-code-version" type="button">Rename</button>
+                <button id="delete-code-version" type="button">Delete</button>
+            </div>
             <div id="editor"></div>
         </section>
 

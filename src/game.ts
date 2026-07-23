@@ -1,5 +1,6 @@
 import { indentWithTab } from "@codemirror/commands";
 import { javascript } from "@codemirror/lang-javascript";
+import { Compartment, EditorState } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { basicSetup, EditorView } from "codemirror";
 import { renderDiff } from "./diff-renderer.ts";
@@ -15,13 +16,36 @@ import {
 import { levels } from "./levels.ts";
 
 const STORAGE_KEY = "plgame-state";
-const CODE_STORAGE_KEY = "plgame-code";
+const CODE_VERSIONS_STORAGE_KEY = "plgame-code-versions";
+const CODE_VERSIONS_STORAGE_VERSION = 1;
 const MIN_RAIL_WIDTH = 288;
 const MIN_EDITOR_WIDTH = 360;
 const DIVIDER_WIDTH = 8;
 const RAIL_RESIZE_STEP = 24;
 
 type MobileTab = "challenge" | "code" | "results";
+
+type CustomCodeVersion = {
+    id: string,
+    kind: "custom",
+    name: string,
+    code: string,
+};
+
+type CheckpointCodeVersion = {
+    id: string,
+    kind: "checkpoint",
+    passesThroughLevel: number,
+    code: string,
+};
+
+type CodeVersion = CustomCodeVersion | CheckpointCodeVersion;
+
+type CodeVersionsState = {
+    version: typeof CODE_VERSIONS_STORAGE_VERSION,
+    selectedVersionId: string,
+    versions: CodeVersion[],
+};
 
 function element<T extends HTMLElement>(id: string): T {
     const found = document.querySelector<T>(`#${id}`);
@@ -31,6 +55,10 @@ function element<T extends HTMLElement>(id: string): T {
 
 const workspace = element<HTMLElement>("workspace");
 const editorParent = element<HTMLDivElement>("editor");
+const codeVersionSelect = element<HTMLSelectElement>("code-version");
+const addCodeVersionButton = element<HTMLButtonElement>("add-code-version");
+const renameCodeVersionButton = element<HTMLButtonElement>("rename-code-version");
+const deleteCodeVersionButton = element<HTMLButtonElement>("delete-code-version");
 const divider = element<HTMLDivElement>("workspace-divider");
 const previousButton = element<HTMLButtonElement>("previous-level");
 const nextButton = element<HTMLButtonElement>("next-level");
@@ -55,6 +83,100 @@ const mobilePanels: Record<MobileTab, HTMLElement> = {
 };
 const narrowScreen = window.matchMedia("(max-width: 48rem)");
 
+function createCodeVersionId(): string {
+    return crypto.randomUUID();
+}
+
+function defaultCodeVersions(): CodeVersionsState {
+    const id = createCodeVersionId();
+    return {
+        version: CODE_VERSIONS_STORAGE_VERSION,
+        selectedVersionId: id,
+        versions: [{
+            id,
+            kind: "custom",
+            name: "My code",
+            code: DEFAULT_CODE,
+        }],
+    };
+}
+
+function parseCodeVersions(serialized: string | null): CodeVersionsState {
+    if (serialized === null) return defaultCodeVersions();
+
+    try {
+        const value: unknown = JSON.parse(serialized);
+        if (typeof value !== "object" || value === null) return defaultCodeVersions();
+
+        const saved = value as Record<string, unknown>;
+        if (
+            saved.version !== CODE_VERSIONS_STORAGE_VERSION
+            || typeof saved.selectedVersionId !== "string"
+            || !Array.isArray(saved.versions)
+            || saved.versions.length === 0
+        ) return defaultCodeVersions();
+
+        const versions: CodeVersion[] = [];
+        const ids = new Set<string>();
+        const customNames = new Set<string>();
+        let customVersionCount = 0;
+        for (const entry of saved.versions) {
+            if (typeof entry !== "object" || entry === null) return defaultCodeVersions();
+            const version = entry as Record<string, unknown>;
+            if (
+                typeof version.id !== "string"
+                || version.id.length === 0
+                || ids.has(version.id)
+                || typeof version.code !== "string"
+            ) return defaultCodeVersions();
+            ids.add(version.id);
+
+            if (version.kind === "custom") {
+                if (typeof version.name !== "string" || version.name.trim().length === 0) {
+                    return defaultCodeVersions();
+                }
+                const name = version.name.trim();
+                const normalizedName = name.toLowerCase();
+                if (customNames.has(normalizedName)) return defaultCodeVersions();
+                customNames.add(normalizedName);
+                customVersionCount++;
+                versions.push({
+                    id: version.id,
+                    kind: "custom",
+                    name,
+                    code: version.code,
+                });
+            } else if (
+                version.kind === "checkpoint"
+                && typeof version.passesThroughLevel === "number"
+                && Number.isInteger(version.passesThroughLevel)
+                && version.passesThroughLevel > 0
+                && version.passesThroughLevel <= levels.length
+            ) {
+                versions.push({
+                    id: version.id,
+                    kind: "checkpoint",
+                    passesThroughLevel: version.passesThroughLevel,
+                    code: version.code,
+                });
+            } else {
+                return defaultCodeVersions();
+            }
+        }
+
+        if (customVersionCount === 0 || !ids.has(saved.selectedVersionId)) {
+            return defaultCodeVersions();
+        }
+        return {
+            version: CODE_VERSIONS_STORAGE_VERSION,
+            selectedVersionId: saved.selectedVersionId,
+            versions,
+        };
+    } catch {
+        return defaultCodeVersions();
+    }
+}
+
 const state = (() => {
     try {
         return parseState(localStorage.getItem(STORAGE_KEY), levels.length);
@@ -63,12 +185,20 @@ const state = (() => {
     }
 })();
 
-function savedCode(): string {
+const codeVersions = (() => {
     try {
-        return localStorage.getItem(CODE_STORAGE_KEY) ?? DEFAULT_CODE;
+        return parseCodeVersions(localStorage.getItem(CODE_VERSIONS_STORAGE_KEY));
     } catch {
-        return DEFAULT_CODE;
+        return defaultCodeVersions();
     }
+})();
+
+function selectedCodeVersion(): CodeVersion {
+    const version = codeVersions.versions.find(
+        candidate => candidate.id === codeVersions.selectedVersionId,
+    );
+    if (!version) throw new Error("The selected code version is missing.");
+    return version;
 }
 
 let running = false;
@@ -81,6 +211,7 @@ let runError: string | undefined;
 let lastRunFailures = new Map<number, LevelFailure>();
 let lastRunTestedThrough = -1;
 let railWidth = state.railWidth;
+let switchingCodeVersion = false;
 
 function saveState(): void {
     try {
@@ -90,13 +221,15 @@ function saveState(): void {
     }
 }
 
-function saveCode(code: string): void {
+function saveCodeVersions(): void {
     try {
-        localStorage.setItem(CODE_STORAGE_KEY, code);
+        localStorage.setItem(CODE_VERSIONS_STORAGE_KEY, JSON.stringify(codeVersions));
     } catch {
         // Storage can be disabled without preventing the game from working.
     }
 }
+
+saveCodeVersions();
 
 function maximumRailWidth(): number {
     return Math.max(MIN_RAIL_WIDTH, workspace.clientWidth - MIN_EDITOR_WIDTH - DIVIDER_WIDTH);
@@ -116,19 +249,122 @@ function setRailWidth(nextWidth: number, persist: boolean): void {
 setRailWidth(railWidth, false);
 state.railWidth = railWidth;
 
+const editorReadOnly = new Compartment();
 const editor = new EditorView({
-    doc: savedCode(),
+    doc: selectedCodeVersion().code,
     extensions: [
         basicSetup,
         javascript(),
         keymap.of([indentWithTab]),
+        editorReadOnly.of([
+            EditorState.readOnly.of(selectedCodeVersion().kind === "checkpoint"),
+            EditorView.editable.of(selectedCodeVersion().kind === "custom"),
+        ]),
         EditorView.updateListener.of((update) => {
-            if (!update.docChanged) return;
-            saveCode(update.state.doc.toString());
+            if (!update.docChanged || switchingCodeVersion) return;
+            const version = selectedCodeVersion();
+            if (version.kind !== "custom") return;
+            version.code = update.state.doc.toString();
+            saveCodeVersions();
         }),
     ],
     parent: editorParent,
 });
+
+function checkpointLabel(passesThroughLevel: number): string {
+    return passesThroughLevel === 1
+        ? "Passes level 1"
+        : `Passes levels 1-${passesThroughLevel}`;
+}
+
+function selectCodeVersion(versionId: string): void {
+    const version = codeVersions.versions.find(candidate => candidate.id === versionId);
+    if (!version) return;
+
+    codeVersions.selectedVersionId = version.id;
+    switchingCodeVersion = true;
+    try {
+        editor.dispatch({
+            changes: {from: 0, to: editor.state.doc.length, insert: version.code},
+            effects: editorReadOnly.reconfigure([
+                EditorState.readOnly.of(version.kind === "checkpoint"),
+                EditorView.editable.of(version.kind === "custom"),
+            ]),
+        });
+    } finally {
+        switchingCodeVersion = false;
+    }
+    saveCodeVersions();
+    render();
+}
+
+function customVersionNameExists(name: string, exceptId?: string): boolean {
+    const normalizedName = name.toLowerCase();
+    return codeVersions.versions.some(version =>
+        version.kind === "custom"
+        && version.id !== exceptId
+        && version.name.toLowerCase() === normalizedName,
+    );
+}
+
+function requestedCodeVersionName(message: string, defaultValue?: string): string | undefined {
+    const entered = window.prompt(message, defaultValue);
+    if (entered === null) return undefined;
+    const name = entered.trim();
+    if (name.length === 0) {
+        window.alert("Version names cannot be empty.");
+        return undefined;
+    }
+    return name;
+}
+
+function createCustomCodeVersion(): void {
+    const name = requestedCodeVersionName("Name this code version:");
+    if (name === undefined) return;
+    if (customVersionNameExists(name)) {
+        window.alert("A code version with that name already exists.");
+        return;
+    }
+
+    const version: CustomCodeVersion = {
+        id: createCodeVersionId(),
+        kind: "custom",
+        name,
+        code: editor.state.doc.toString(),
+    };
+    codeVersions.versions.push(version);
+    selectCodeVersion(version.id);
+}
+
+function renameCustomCodeVersion(): void {
+    const version = selectedCodeVersion();
+    if (version.kind !== "custom") return;
+    const name = requestedCodeVersionName("Rename this code version:", version.name);
+    if (name === undefined || name === version.name) return;
+    if (customVersionNameExists(name, version.id)) {
+        window.alert("A code version with that name already exists.");
+        return;
+    }
+    version.name = name;
+    saveCodeVersions();
+    render();
+}
+
+function deleteCustomCodeVersion(): void {
+    const version = selectedCodeVersion();
+    if (version.kind !== "custom") return;
+    const customVersions = codeVersions.versions.filter(
+        (candidate): candidate is CustomCodeVersion => candidate.kind === "custom",
+    );
+    if (customVersions.length <= 1) return;
+    if (!window.confirm(`Delete "${version.name}"?`)) return;
+
+    const nextVersion = customVersions.find(candidate => candidate.id !== version.id);
+    if (!nextVersion) throw new Error("A replacement custom code version is missing.");
+    const index = codeVersions.versions.indexOf(version);
+    codeVersions.versions.splice(index, 1);
+    selectCodeVersion(nextVersion.id);
+}
 
 function codeBlock(text: string): HTMLPreElement {
     const pre = document.createElement("pre");
@@ -281,6 +517,48 @@ function renderLevel(): void {
     outputTokens.textContent = rendered?.expected ?? unavailable;
 }
 
+function renderCodeVersions(): void {
+    const customGroup = document.createElement("optgroup");
+    customGroup.label = "Editable versions";
+    for (const version of codeVersions.versions) {
+        if (version.kind !== "custom") continue;
+        const option = document.createElement("option");
+        option.value = version.id;
+        option.textContent = version.name;
+        customGroup.append(option);
+    }
+
+    const checkpointGroup = document.createElement("optgroup");
+    checkpointGroup.label = "Automatic checkpoints";
+    const checkpoints = codeVersions.versions
+        .filter((version): version is CheckpointCodeVersion => version.kind === "checkpoint")
+        .toSorted((left, right) => right.passesThroughLevel - left.passesThroughLevel);
+    for (const version of checkpoints) {
+        const option = document.createElement("option");
+        option.value = version.id;
+        option.textContent = checkpointLabel(version.passesThroughLevel);
+        checkpointGroup.append(option);
+    }
+
+    const groups = checkpoints.length === 0
+        ? [customGroup]
+        : [customGroup, checkpointGroup];
+    codeVersionSelect.replaceChildren(...groups);
+    codeVersionSelect.value = codeVersions.selectedVersionId;
+
+    const selectedVersion = selectedCodeVersion();
+    const customVersionCount = codeVersions.versions.filter(
+        version => version.kind === "custom",
+    ).length;
+    const controlsDisabled = running || refreshingPreviews;
+    codeVersionSelect.disabled = controlsDisabled;
+    addCodeVersionButton.disabled = controlsDisabled;
+    renameCodeVersionButton.disabled =
+        controlsDisabled || selectedVersion.kind !== "custom";
+    deleteCodeVersionButton.disabled =
+        controlsDisabled || selectedVersion.kind !== "custom" || customVersionCount <= 1;
+}
+
 function render(): void {
     previousButton.disabled = running || state.levelIndex === 0;
     nextButton.disabled = running || state.levelIndex === state.highestLevelIndex;
@@ -297,6 +575,7 @@ function render(): void {
     );
     workspace.dataset.browsing = String(levelNavigationExpanded);
     levelNavigation.hidden = !levelNavigationExpanded;
+    renderCodeVersions();
     renderLevel();
     renderLevelGrid();
     renderResult();
@@ -322,8 +601,10 @@ async function runGame(): Promise<void> {
     render();
 
     try {
+        const code = editor.state.doc.toString();
+        const previousHighestLevelIndex = state.highestLevelIndex;
         const result = await runProgression(
-            editor.state.doc.toString(),
+            code,
             levels,
             state.levelIndex,
             state.highestLevelIndex,
@@ -341,6 +622,20 @@ async function runGame(): Promise<void> {
         state.highestLevelIndex = Math.max(state.highestLevelIndex, result.levelIndex);
         lastRunTestedThrough = state.highestLevelIndex;
 
+        if (state.highestLevelIndex > previousHighestLevelIndex) {
+            const passesThroughLevel = result.kind === "complete"
+                ? levels.length
+                : result.levelIndex;
+            if (passesThroughLevel > 0) {
+                codeVersions.versions.push({
+                    id: createCodeVersionId(),
+                    kind: "checkpoint",
+                    passesThroughLevel,
+                    code,
+                });
+                saveCodeVersions();
+            }
+        }
         saveState();
         activeMobileTab = "results";
     } catch (error) {
@@ -383,6 +678,10 @@ async function refreshPreviews(): Promise<void> {
     }
 }
 
+codeVersionSelect.addEventListener("change", () => selectCodeVersion(codeVersionSelect.value));
+addCodeVersionButton.addEventListener("click", createCustomCodeVersion);
+renameCodeVersionButton.addEventListener("click", renameCustomCodeVersion);
+deleteCodeVersionButton.addEventListener("click", deleteCustomCodeVersion);
 previousButton.addEventListener("click", () => goToLevel(state.levelIndex - 1));
 nextButton.addEventListener("click", () => goToLevel(state.levelIndex + 1));
 latestButton.addEventListener("click", () => goToLevel(state.highestLevelIndex));
