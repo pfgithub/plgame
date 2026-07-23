@@ -1,5 +1,9 @@
 import type { Level, Token } from "./levels.ts";
-import type { CodeExecutionResult, CodeRunOptions } from "./executor.ts";
+import type {
+    CodeExecutionResult,
+    CodeRunOptions,
+    ConsoleOutputEntry,
+} from "./executor.ts";
 
 export const DEFAULT_CODE = `
 // Write code in execute() to solve the level
@@ -35,16 +39,21 @@ export type RenderedLevel = {
 };
 
 export type ProgressionResult =
-    | {kind: "past-failures", levelIndex: number, pastFailures: LevelFailure[], levelFailures: Array<LevelFailure | undefined>, renderedLevels: RenderedLevel[]}
-    | {kind: "failed", levelIndex: number, failure: LevelFailure, pastFailures: LevelFailure[], levelFailures: Array<LevelFailure | undefined>, renderedLevels: RenderedLevel[]}
-    | {kind: "complete", levelIndex: number, pastFailures: LevelFailure[], levelFailures: Array<LevelFailure | undefined>, renderedLevels: RenderedLevel[]};
+    | {kind: "past-failures", levelIndex: number, pastFailures: LevelFailure[], levelFailures: Array<LevelFailure | undefined>, renderedLevels: RenderedLevel[], consoleOutput: ConsoleOutputEntry[]}
+    | {kind: "failed", levelIndex: number, failure: LevelFailure, pastFailures: LevelFailure[], levelFailures: Array<LevelFailure | undefined>, renderedLevels: RenderedLevel[], consoleOutput: ConsoleOutputEntry[]}
+    | {kind: "complete", levelIndex: number, pastFailures: LevelFailure[], levelFailures: Array<LevelFailure | undefined>, renderedLevels: RenderedLevel[], consoleOutput: ConsoleOutputEntry[]};
 
 type Runner = (
     code: string,
     inputs: number[][],
     valuesToRender: number[][],
     options?: CodeRunOptions,
-) => Promise<{executions: CodeExecutionResult[], renderings: string[]}>;
+    levelIndices?: number[],
+) => Promise<{
+    executions: CodeExecutionResult[],
+    renderings: string[],
+    consoleOutput?: ConsoleOutputEntry[],
+}>;
 
 const STORAGE_VERSION = 5;
 const DEFAULT_RAIL_WIDTH = 416;
@@ -74,6 +83,7 @@ export async function runProgression(
         expected: level.output,
     }));
     const renderedLevels: RenderedLevel[] = [];
+    const consoleOutput: ConsoleOutputEntry[] = [];
     const levelFailures: Array<LevelFailure | undefined> = Array.from({
         length: levels.length,
     });
@@ -91,9 +101,11 @@ export async function runProgression(
                 levelsToRun.map(level => level.input),
                 levelsToRun.flatMap(level => [level.input, level.expected]),
                 options,
+                levelsToRun.map(level => level.levelIndex),
             );
             executions = run.executions;
             renderings = run.renderings;
+            consoleOutput.push(...(run.consoleOutput ?? []));
         } catch (error) {
             throw error instanceof Error ? error : new Error(String(error));
         }
@@ -162,6 +174,7 @@ export async function runProgression(
             pastFailures,
             levelFailures,
             renderedLevels,
+            consoleOutput,
         };
     }
     if (pastFailures.length > 0) {
@@ -171,6 +184,7 @@ export async function runProgression(
             pastFailures,
             levelFailures,
             renderedLevels,
+            consoleOutput,
         };
     }
 
@@ -185,6 +199,7 @@ export async function runProgression(
             pastFailures,
             levelFailures,
             renderedLevels,
+            consoleOutput,
         };
     }
 
@@ -198,6 +213,7 @@ export async function runProgression(
                 pastFailures,
                 levelFailures,
                 renderedLevels,
+                consoleOutput,
             };
         }
 
@@ -212,6 +228,7 @@ export async function runProgression(
         pastFailures,
         levelFailures,
         renderedLevels,
+        consoleOutput,
     };
 }
 

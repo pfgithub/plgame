@@ -2,9 +2,15 @@ export type CodeExecutionResult =
     | {ok: true, result: number[], renderedResult: string, executionTimeMs?: number}
     | {ok: false, error: Error, executionTimeMs?: number};
 
+export type ConsoleOutputEntry = {
+    message: string,
+    levelIndex?: number,
+};
+
 export type CodeRunResult = {
     executions: CodeExecutionResult[],
     renderings: string[],
+    consoleOutput: ConsoleOutputEntry[],
 };
 
 export type CodeRunOptions = {
@@ -22,6 +28,7 @@ export function runCode(
     inputs: number[][],
     valuesToRender: number[][] = [],
     options?: CodeRunOptions,
+    levelIndices: number[] = [],
 ): Promise<CodeRunResult> {
     const EXECUTION_TIMEOUT_MS = 1_000;
     const SETUP_TIMEOUT_MS = 2_000;
@@ -69,6 +76,7 @@ export function runCode(
                 inputs: number[][],
                 valuesToRender: number[][],
                 options?: CodeRunOptions,
+                levelIndices: number[],
                 timeoutMs: number,
             };
 
@@ -82,6 +90,7 @@ export function runCode(
                 | {
                     ok: true,
                     renderings: string[],
+                    consoleOutput: ConsoleOutputEntry[],
                     results: Array<
                         | {ok: true, result: number[], renderedResult: string, executionTimeMs: number}
                         | {ok: false, error: SerializedError, executionTimeMs: number}
@@ -93,6 +102,63 @@ export function runCode(
                 };
 
             function workerMain(): void {
+                const consoleOutput: ConsoleOutputEntry[] = [];
+                const MAX_CONSOLE_LINES = 500;
+                const MAX_CONSOLE_VALUE_LENGTH = 10_000;
+                let consoleTruncated = false;
+                let activeLevelIndex: number | undefined;
+
+                const formatConsoleValue = (value: unknown): string => {
+                    if (typeof value === "string") return value;
+                    if (typeof value === "undefined") return "undefined";
+                    if (typeof value === "bigint") return `${value}n`;
+                    if (typeof value === "symbol" || typeof value === "function") {
+                        return String(value);
+                    }
+                    if (value instanceof Error) return `${value.name}: ${value.message}`;
+
+                    try {
+                        const serialized = JSON.stringify(value);
+                        return serialized ?? String(value);
+                    } catch {
+                        return String(value);
+                    }
+                };
+
+                const writeConsole = (method: string, values: unknown[]): void => {
+                    if (consoleOutput.length >= MAX_CONSOLE_LINES) {
+                        if (!consoleTruncated) {
+                            consoleTruncated = true;
+                            consoleOutput.push({
+                                message: "[console output truncated]",
+                                ...(activeLevelIndex === undefined ? {} : {levelIndex: activeLevelIndex}),
+                            });
+                        }
+                        return;
+                    }
+
+                    const prefix = method === "log" ? "" : `[${method}] `;
+                    const line = prefix + values.map(formatConsoleValue).join(" ");
+                    consoleOutput.push({
+                        message: line.length <= MAX_CONSOLE_VALUE_LENGTH
+                            ? line
+                            : `${line.slice(0, MAX_CONSOLE_VALUE_LENGTH)}…`,
+                        ...(activeLevelIndex === undefined ? {} : {levelIndex: activeLevelIndex}),
+                    });
+                };
+
+                const capturedConsole = {
+                    log: (...values: unknown[]) => writeConsole("log", values),
+                    info: (...values: unknown[]) => writeConsole("info", values),
+                    warn: (...values: unknown[]) => writeConsole("warn", values),
+                    error: (...values: unknown[]) => writeConsole("error", values),
+                    debug: (...values: unknown[]) => writeConsole("debug", values),
+                    clear: () => {
+                        consoleOutput.length = 0;
+                        consoleTruncated = false;
+                    },
+                };
+
                 const serializeError = (error: unknown): SerializedError => {
                     if (error instanceof Error) {
                         return {
@@ -109,11 +175,12 @@ export function runCode(
                 };
 
                 self.addEventListener("message", async (event) => {
-                    const {code, inputs, valuesToRender, options} = event.data as {
+                    const {code, inputs, valuesToRender, options, levelIndices} = event.data as {
                         code: string,
                         inputs: number[][],
                         valuesToRender: number[][],
                         options?: CodeRunOptions,
+                        levelIndices: number[],
                     };
 
                     try {
@@ -125,6 +192,7 @@ export function runCode(
              *   const execute = input => {}
              */
                         const createFunctions = new Function(
+                            "console",
                             `"use strict";
 
 ${code}
@@ -140,12 +208,12 @@ return {
   render
 };
 `,
-                        ) as () => {
+                        ) as (console: typeof capturedConsole) => {
                             execute?: (input: number[]) => unknown,
                             render: (tokens: number[]) => unknown,
                         };
 
-                        const {execute, render} = createFunctions();
+                        const {execute, render} = createFunctions(capturedConsole);
                         if (inputs.length > 0 && execute === undefined) {
                             throw new Error(
                                 "The submitted code must define a function named execute(input).",
@@ -161,9 +229,11 @@ return {
                             return rendered;
                         };
                         const renderings: string[] = [];
-                        for (const value of valuesToRender) {
+                        for (const [valueIndex, value] of valuesToRender.entries()) {
+                            activeLevelIndex = levelIndices[Math.floor(valueIndex / 2)];
                             renderings.push(await renderTokens(value));
                         }
+                        activeLevelIndex = undefined;
                         const results: Array<
                             | {ok: true, result: number[], renderedResult: string, executionTimeMs: number}
                             | {ok: false, error: SerializedError, executionTimeMs: number}
@@ -180,6 +250,7 @@ return {
                             }
 
                             const executionStartedAt = performance.now();
+                            activeLevelIndex = levelIndices[inputIndex];
                             try {
                                 if (execute === undefined) {
                                     throw new Error(
@@ -236,10 +307,12 @@ return {
                                 }
                             }
                         }
+                        activeLevelIndex = undefined;
 
                         const response: WorkerResponse = {
                             ok: true,
                             renderings,
+                            consoleOutput,
                             results,
                         };
 
@@ -327,6 +400,7 @@ return {
                         inputs: request.inputs,
                         valuesToRender: request.valuesToRender,
                         options: request.options,
+                        levelIndices: request.levelIndices,
                     });
                 },
                 {once: true},
@@ -367,6 +441,7 @@ return {
                     inputs,
                     valuesToRender,
                     options,
+                    levelIndices,
                     timeoutMs: EXECUTION_TIMEOUT_MS,
                 },
                 "*",
@@ -381,6 +456,7 @@ return {
                 | {
                     ok: true,
                     renderings: string[],
+                    consoleOutput: ConsoleOutputEntry[],
                     results: Array<
                         | {ok: true, result: number[], renderedResult: string, executionTimeMs: number}
                         | {
@@ -414,6 +490,7 @@ return {
                         return {ok: false, error, executionTimeMs: execution.executionTimeMs};
                     }),
                     renderings: response.renderings,
+                    consoleOutput: response.consoleOutput,
                 });
                 return;
             }
@@ -447,7 +524,14 @@ return {
     });
 }
 
-export async function renderCode(code: string, values: number[][]): Promise<string[]> {
-    const result = await runCode(code, [], values);
-    return result.renderings;
+export async function renderCode(
+    code: string,
+    values: number[][],
+    levelIndices: number[],
+): Promise<{renderings: string[], consoleOutput: ConsoleOutputEntry[]}> {
+    const result = await runCode(code, [], values, undefined, levelIndices);
+    return {
+        renderings: result.renderings,
+        consoleOutput: result.consoleOutput,
+    };
 }

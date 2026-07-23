@@ -66,7 +66,7 @@
 
         <aside
             id="task-rail"
-            class="contents min-h-0 min-w-0 border-zinc-800 group-data-[browsing=true]/workspace:[&>#challenge-panel]:!hidden md:col-start-3 md:row-start-1 md:flex md:flex-col md:overflow-y-auto md:border-l"
+            class="contents min-h-0 min-w-0 border-zinc-800 group-data-[browsing=true]/workspace:[&>#challenge-panel]:!hidden group-data-[browsing=true]/workspace:[&>#console-panel]:!hidden md:col-start-3 md:row-start-1 md:flex md:flex-col md:overflow-hidden md:border-l"
             aria-label="Current level"
         >
             <header
@@ -116,7 +116,7 @@
 
             <nav
                 id="mobile-tabs"
-                class="col-start-1 row-start-2 grid grid-cols-2 border-b border-zinc-800 bg-zinc-950 group-data-[browsing=true]/workspace:!hidden md:hidden [&_button]:border-r [&_button]:border-zinc-800 [&_button]:text-xs [&_button]:text-zinc-500 [&_button]:hover:bg-zinc-900 [&_button]:hover:text-zinc-200 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:-outline-offset-2 [&_button]:focus-visible:outline-violet-400 [&_button:last-child]:border-r-0 [&_button[aria-selected=true]]:bg-zinc-900 [&_button[aria-selected=true]]:font-semibold [&_button[aria-selected=true]]:text-violet-300"
+                class="col-start-1 row-start-2 grid grid-cols-3 border-b border-zinc-800 bg-zinc-950 group-data-[browsing=true]/workspace:!hidden md:hidden [&_button]:border-r [&_button]:border-zinc-800 [&_button]:text-xs [&_button]:text-zinc-500 [&_button]:hover:bg-zinc-900 [&_button]:hover:text-zinc-200 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:-outline-offset-2 [&_button]:focus-visible:outline-violet-400 [&_button:last-child]:border-r-0 [&_button[aria-selected=true]]:bg-zinc-900 [&_button[aria-selected=true]]:font-semibold [&_button[aria-selected=true]]:text-violet-300"
                 role="tablist"
                 aria-label="Game workspace"
             >
@@ -129,6 +129,15 @@
                     tabindex="-1"
                     data-tab="challenge"
                 >Challenge</button>
+                <button
+                    id="console-tab"
+                    type="button"
+                    role="tab"
+                    aria-controls="console-panel"
+                    aria-selected="false"
+                    tabindex="-1"
+                    data-tab="console"
+                >Console</button>
                 <button
                     id="code-tab"
                     type="button"
@@ -226,6 +235,18 @@
                             class="[&_.diff-line]:font-mono [&_pre]:mb-3 [&_pre]:min-h-8 [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_pre]:rounded [&_pre]:border [&_pre]:border-zinc-800 [&_pre]:bg-zinc-900/60 [&_pre]:p-2 [&_pre]:font-mono [&_pre]:text-xs [&_pre]:leading-relaxed [&_pre]:text-zinc-300"
                         ></div>
                     </section>
+                </div>
+            </section>
+
+            <section
+                id="console-panel"
+                class="col-start-1 row-start-3 hidden min-h-0 flex-col overflow-hidden border-zinc-800 bg-zinc-950 group-data-[mobile-tab=console]/workspace:flex md:flex md:h-48 md:shrink-0 md:border-t"
+                role="tabpanel"
+                aria-labelledby="console-tab"
+            >
+                <h2 class="shrink-0 border-b border-zinc-800 px-3 py-2 text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-zinc-500">Console</h2>
+                <div id="console-output" class="min-h-0 flex-1 overflow-auto p-3 font-mono text-xs leading-relaxed text-zinc-300">
+                    <p id="console-empty" class="font-sans text-zinc-600">No console output. Use <code class="font-mono text-zinc-500">console.log(...)</code> in your code to print values here.</p>
                 </div>
             </section>
 

@@ -17,7 +17,11 @@ import {
     Settings,
 } from "lucide";
 import { renderDiff } from "./diff-renderer.ts";
-import { renderCode, runCode } from "./executor.ts";
+import {
+    type ConsoleOutputEntry,
+    renderCode,
+    runCode,
+} from "./executor.ts";
 import {
     DEFAULT_CODE,
     type LevelFailure,
@@ -37,7 +41,7 @@ const MIN_EDITOR_WIDTH = 360;
 const DIVIDER_WIDTH = 8;
 const RAIL_RESIZE_STEP = 24;
 
-type MobileTab = "challenge" | "code";
+type MobileTab = "challenge" | "console" | "code";
 
 type CustomCodeVersion = {
     id: string,
@@ -116,6 +120,8 @@ const challengeActualOutputCode = element<HTMLElement>("challenge-actual-output-
 const challengeDiffSection = element<HTMLElement>("challenge-diff-section");
 const challengeDiffMessage = element<HTMLParagraphElement>("challenge-diff-message");
 const challengeDiffOutput = element<HTMLDivElement>("challenge-diff-output");
+const consoleOutput = element<HTMLDivElement>("console-output");
+const consoleEmpty = element<HTMLParagraphElement>("console-empty");
 const levelResultsOutdated = element<HTMLDivElement>("level-results-outdated");
 const actionModal = element<HTMLDialogElement>("action-modal");
 const actionModalForm = element<HTMLFormElement>("action-modal-form");
@@ -134,10 +140,12 @@ const successPrimaryAction = element<HTMLButtonElement>("success-primary-action"
 const closeSuccessModalButton = element<HTMLButtonElement>("close-success-modal");
 const mobileTabButtons = [
     element<HTMLButtonElement>("challenge-tab"),
+    element<HTMLButtonElement>("console-tab"),
     element<HTMLButtonElement>("code-tab"),
 ];
 const mobilePanels: Record<MobileTab, HTMLElement> = {
     challenge: element<HTMLElement>("challenge-panel"),
+    console: element<HTMLElement>("console-panel"),
     code: element<HTMLElement>("code-panel"),
 };
 const narrowScreen = window.matchMedia("(max-width: 48rem)");
@@ -282,6 +290,8 @@ let runError: string | undefined;
 let lastRunFailures = new Map<number, LevelFailure>();
 let lastRunTestedThrough = -1;
 let resultsOutOfDate = false;
+let lastConsoleOutput: ConsoleOutputEntry[] = [];
+let renderedConsoleOutput: ConsoleOutputEntry[] | undefined;
 let railWidth = state.railWidth;
 let switchingCodeVersion = false;
 let actionModalSubmit: ((value: string) => string | undefined) | undefined;
@@ -598,6 +608,50 @@ function renderChallengeResult(): void {
     }
 }
 
+function renderConsole(): void {
+    if (renderedConsoleOutput === lastConsoleOutput) return;
+    renderedConsoleOutput = lastConsoleOutput;
+
+    if (lastConsoleOutput.length === 0) {
+        consoleOutput.replaceChildren(consoleEmpty);
+        return;
+    }
+
+    const lines: HTMLElement[] = [];
+    let previousLevelIndex: number | undefined;
+    for (const entry of lastConsoleOutput) {
+        if (entry.levelIndex !== undefined && entry.levelIndex !== previousLevelIndex) {
+            const levelIndex = entry.levelIndex;
+            const header = document.createElement("button");
+            header.type = "button";
+            header.className =
+                "my-1 flex w-full items-center gap-1 rounded bg-zinc-800 px-2 py-1 text-left font-sans font-semibold text-violet-300 hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-violet-400";
+            const label = document.createElement("span");
+            label.textContent = `Level ${levelIndex + 1}`;
+            const arrow = createIconElement(ArrowRight, {
+                "aria-hidden": "true",
+                "class": "lucide lucide-arrow-right shrink-0",
+                "height": 14,
+                "width": 14,
+            });
+            header.replaceChildren(label, arrow);
+            header.addEventListener("click", () => {
+                levelNavigationExpanded = false;
+                goToLevel(levelIndex);
+                if (narrowScreen.matches) setMobileTab("code");
+            });
+            lines.push(header);
+        }
+
+        const line = document.createElement("div");
+        line.className = "whitespace-pre-wrap break-words";
+        line.textContent = entry.message;
+        lines.push(line);
+        previousLevelIndex = entry.levelIndex;
+    }
+    consoleOutput.replaceChildren(...lines);
+}
+
 function levelState(levelIndex: number): "failed" | "passed" | "unlocked" {
     if (lastRunFailures.has(levelIndex)) return "failed";
     if (levelIndex <= lastRunTestedThrough) return "passed";
@@ -745,6 +799,7 @@ function render(): void {
     renderLevel();
     renderLevelGrid();
     renderChallengeResult();
+    renderConsole();
     setMobileTab(activeMobileTab);
 }
 
@@ -945,6 +1000,7 @@ async function runGame(): Promise<void> {
     if (running || refreshingPreviews) return;
     running = true;
     runError = undefined;
+    lastConsoleOutput = [];
     render();
 
     const code = editor.state.doc.toString();
@@ -963,6 +1019,7 @@ async function runGame(): Promise<void> {
         const failures = result.levelFailures.filter(
             (failure): failure is LevelFailure => failure !== undefined,
         );
+        lastConsoleOutput = result.consoleOutput;
         lastRunFailures = new Map(failures.map(failure => [failure.levelIndex, failure]));
         result.renderedLevels.forEach((renderedLevel, index) => {
             renderedLevels[index] = renderedLevel;
@@ -1022,10 +1079,13 @@ async function refreshPreviews(): Promise<void> {
 
     const unlockedLevels = levels.slice(0, state.highestLevelIndex + 1);
     try {
-        const renderings = await renderCode(
+        const result = await renderCode(
             editor.state.doc.toString(),
             unlockedLevels.flatMap(level => [level.input, level.output]),
+            unlockedLevels.map((_level, levelIndex) => levelIndex),
         );
+        const {renderings} = result;
+        lastConsoleOutput = result.consoleOutput;
         if (renderings.length !== unlockedLevels.length * 2) {
             throw new Error("The code renderer returned an unexpected number of previews.");
         }
