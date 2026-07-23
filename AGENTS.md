@@ -4,6 +4,8 @@ After finishing, run `bun check` to typecheck, lint, format, & test code. Do not
 
 Do not add any tests unless asked.
 
+Do not add any animations or transitions unless asked.
+
 ## Game summary
 
 plgame is a browser-based programming puzzle about learning an unknown language from input/output examples. Players name and render numeric tokens, implement the language in JavaScript, and advance through levels that gradually reveal base-6 numbers, stack operations, variables, arithmetic, and lists.
@@ -16,3 +18,5 @@ plgame is a browser-based programming puzzle about learning an unknown language 
 - `src/executor.ts`: Sandboxed iframe and Web Worker runner that validates, times out, executes, and renders player code. Calling runCode() is slow, always batch multiple calls into one call instead, modifying the runCode implementaion if necessary.
 - `src/diff-renderer.ts`: Builds a semantic two-line HTML diff between expected and actual rendered output.
 - `src/levels.ts`: Token vocabulary, tokenizer, ordered puzzle corpus, and reference stack-language interpreter used to validate level data.
+
+If new files are added, or significant changes are made to existing files, add/update the summary.

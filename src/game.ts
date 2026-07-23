@@ -727,9 +727,18 @@ codeVersionSelect.addEventListener("change", () => selectCodeVersion(codeVersion
 addCodeVersionButton.addEventListener("click", createCustomCodeVersion);
 renameCodeVersionButton.addEventListener("click", renameCustomCodeVersion);
 deleteCodeVersionButton.addEventListener("click", deleteCustomCodeVersion);
-previousButton.addEventListener("click", () => goToLevel(state.levelIndex - 1));
-nextButton.addEventListener("click", () => goToLevel(state.levelIndex + 1));
-latestButton.addEventListener("click", () => goToLevel(state.highestLevelIndex));
+previousButton.addEventListener("click", () => {
+    levelNavigationExpanded = false;
+    goToLevel(state.levelIndex - 1);
+});
+nextButton.addEventListener("click", () => {
+    levelNavigationExpanded = false;
+    goToLevel(state.levelIndex + 1);
+});
+latestButton.addEventListener("click", () => {
+    levelNavigationExpanded = false;
+    goToLevel(state.highestLevelIndex);
+});
 runButton.addEventListener("click", () => void runGame());
 refreshPreviewsButton.addEventListener("click", () => void refreshPreviews());
 levelButton.addEventListener("click", () => {

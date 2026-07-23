@@ -15,7 +15,7 @@
     >
         <section
             id="code-panel"
-            class="row-start-3 hidden min-h-0 min-w-0 flex-col gap-1.5 overflow-hidden p-2 group-data-[browsing=true]/workspace:!hidden group-data-[mobile-tab=code]/workspace:flex md:col-start-1 md:row-start-1 md:flex md:p-2.5 [&_.cm-activeLine]:!bg-zinc-800/70 [&_.cm-activeLineGutter]:!bg-zinc-800/70 [&_.cm-content]:caret-violet-300 [&_.cm-editor]:h-full [&_.cm-editor]:!bg-zinc-950 [&_.cm-editor]:font-mono [&_.cm-editor]:!text-zinc-200 [&_.cm-editor]:[color-scheme:dark] [&_.cm-editor.cm-focused]:outline-none [&_.cm-gutter]:!bg-zinc-900 [&_.cm-gutters]:!border-r [&_.cm-gutters]:!border-zinc-800 [&_.cm-gutters]:!bg-zinc-900 [&_.cm-gutters]:!text-zinc-600 [&_.cm-scroller]:font-mono [&_.cm-scroller]:[color-scheme:dark] [&_.cm-scroller]:[scrollbar-color:#52525b_#18181b]"
+            class="row-start-3 hidden min-h-0 min-w-0 flex-col gap-1.5 overflow-hidden p-2 max-md:group-data-[browsing=true]/workspace:!hidden group-data-[mobile-tab=code]/workspace:flex md:col-start-1 md:row-start-1 md:flex md:p-2.5 [&_.cm-activeLine]:!bg-zinc-800/70 [&_.cm-activeLineGutter]:!bg-zinc-800/70 [&_.cm-content]:caret-violet-300 [&_.cm-editor]:h-full [&_.cm-editor]:!bg-zinc-950 [&_.cm-editor]:font-mono [&_.cm-editor]:!text-zinc-200 [&_.cm-editor]:[color-scheme:dark] [&_.cm-editor.cm-focused]:outline-none [&_.cm-gutter]:!bg-zinc-900 [&_.cm-gutters]:!border-r [&_.cm-gutters]:!border-zinc-800 [&_.cm-gutters]:!bg-zinc-900 [&_.cm-gutters]:!text-zinc-600 [&_.cm-scroller]:font-mono [&_.cm-scroller]:[color-scheme:dark] [&_.cm-scroller]:[scrollbar-color:#52525b_#18181b]"
             role="tabpanel"
             aria-labelledby="code-tab"
         >
@@ -73,12 +73,16 @@
                 id="level-header"
                 class="col-start-1 row-start-1 grid h-10 grid-cols-[2rem_minmax(0,1fr)_2rem_2rem_auto] items-center gap-1 border-b border-zinc-800 bg-zinc-950 px-1.5 md:sticky md:top-0 md:z-10 md:shrink-0 [&>button]:grid [&>button]:h-8 [&>button]:place-items-center [&>button]:rounded [&>button]:border [&>button]:border-zinc-700 [&>button]:bg-zinc-900 [&>button]:text-xs [&>button]:text-zinc-300 [&>button]:hover:border-zinc-500 [&>button]:hover:bg-zinc-800 [&>button]:hover:text-white [&>button]:focus-visible:outline-2 [&>button]:focus-visible:outline-offset-2 [&>button]:focus-visible:outline-violet-400 [&>button]:disabled:cursor-not-allowed [&>button]:disabled:opacity-35 [&_.lucide]:size-4"
             >
-                <button id="previous-level" type="button" aria-label="Previous level">
+                <button
+                    id="previous-level"
+                    type="button"
+                    aria-label="Previous level"
+                >
                     <i data-lucide="arrow-left"></i>
                 </button>
                 <button
                     id="level-number"
-                    class="!flex min-w-0 items-center justify-center gap-1 px-2 font-semibold data-[level-state=failed]:[&>#level-number-label]:!text-red-300 data-[level-state=passed]:[&>#level-number-label]:!text-emerald-300 [&_.lucide]:shrink-0"
+                    class="!flex min-w-0 items-center justify-center gap-1 px-2 font-semibold aria-expanded:[&_.lucide]:rotate-180 data-[level-state=failed]:[&>#level-number-label]:!text-red-300 data-[level-state=passed]:[&>#level-number-label]:!text-emerald-300 [&_.lucide]:shrink-0"
                     type="button"
                     aria-label="Browse unlocked levels"
                     aria-controls="level-navigation"
@@ -87,7 +91,11 @@
                     <span id="level-number-label" class="truncate"></span>
                     <i data-lucide="chevron-down"></i>
                 </button>
-                <button id="next-level" type="button" aria-label="Next unlocked level">
+                <button
+                    id="next-level"
+                    type="button"
+                    aria-label="Next unlocked level"
+                >
                     <i data-lucide="arrow-right"></i>
                 </button>
                 <button
