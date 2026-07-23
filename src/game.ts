@@ -1,6 +1,7 @@
 import { indentWithTab } from "@codemirror/commands";
 import { javascript } from "@codemirror/lang-javascript";
 import { Compartment, EditorState } from "@codemirror/state";
+import { oneDark } from "@codemirror/theme-one-dark";
 import { keymap } from "@codemirror/view";
 import { basicSetup, EditorView } from "codemirror";
 import {
@@ -276,6 +277,7 @@ const editor = new EditorView({
     extensions: [
         basicSetup,
         javascript(),
+        oneDark,
         keymap.of([indentWithTab]),
         editorReadOnly.of([
             EditorState.readOnly.of(selectedCodeVersion().kind === "checkpoint"),
@@ -387,8 +389,9 @@ function deleteCustomCodeVersion(): void {
     selectCodeVersion(nextVersion.id);
 }
 
-function codeBlock(text: string): HTMLPreElement {
+function codeBlock(text: string, renderedOutput = false): HTMLPreElement {
     const pre = document.createElement("pre");
+    if (renderedOutput) pre.className = "font-mono";
     const code = document.createElement("code");
     code.textContent = text;
     pre.append(code);
@@ -438,7 +441,7 @@ function renderResult(): void {
         const expectedLabel = document.createElement("strong");
         expectedLabel.textContent = "Expected output";
         const expected = failure.renderedExpected;
-        children.push(expectedLabel, codeBlock(expected));
+        children.push(expectedLabel, codeBlock(expected, true));
 
         if (failure.error) {
             const errorLabel = document.createElement("strong");
@@ -455,7 +458,7 @@ function renderResult(): void {
             diffLabel.textContent = "Diff";
             children.push(
                 actualLabel,
-                codeBlock(actual),
+                codeBlock(actual, true),
                 diffLabel,
                 renderDiff(document, expected, actual),
             );

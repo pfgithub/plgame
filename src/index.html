@@ -1,348 +1,62 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full bg-zinc-950">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#09090b">
     <title>plgame</title>
-    <style>
-        html, body, main {
-            height: 100%;
-        }
-
-        body {
-            margin: 0;
-        }
-
-        main {
-            --task-rail-width: 26rem;
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) 0.5rem minmax(18rem, var(--task-rail-width));
-            overflow: hidden;
-        }
-
-        section, aside, header, nav {
-            box-sizing: border-box;
-            min-width: 0;
-        }
-
-        button {
-            min-height: 2rem;
-        }
-
-        button > .lucide {
-            display: block;
-            width: 1.125rem;
-            height: 1.125rem;
-            margin: auto;
-        }
-
-        pre {
-            white-space: pre-wrap;
-            overflow-wrap: anywhere;
-            min-height: 1.5rem;
-        }
-
-        del {
-            background: #ccffd8;
-            text-decoration: none;
-        }
-
-        ins {
-            background: #ffd7d5;
-            text-decoration: none;
-        }
-
-        .diff-line-expected {
-            color: green;
-        }
-
-        .diff-line-actual {
-            color: red;
-        }
-
-        #code-panel {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            min-height: 0;
-            padding: 1rem;
-        }
-
-        #code-version-toolbar {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        #code-version {
-            min-width: 0;
-            flex: 1;
-        }
-
-        #editor {
-            min-height: 0;
-            flex: 1;
-        }
-
-        .cm-editor {
-            height: 100%;
-        }
-
-        #workspace-divider {
-            border-left: 1px solid;
-            cursor: col-resize;
-            touch-action: none;
-        }
-
-        #workspace-divider:focus {
-            outline: 2px solid;
-            outline-offset: -2px;
-        }
-
-        #task-rail {
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-            overflow-y: auto;
-            border-left: 1px solid;
-        }
-
-        #level-header {
-            position: sticky;
-            top: 0;
-            z-index: 1;
-            display: grid;
-            grid-template-columns: auto minmax(0, 1fr) auto auto auto;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 1rem;
-            background: Canvas;
-            border-bottom: 1px solid;
-        }
-
-        #level-number {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            justify-self: center;
-            text-align: center;
-            font-size: 1rem;
-        }
-
-        #level-number > .lucide {
-            width: 1rem;
-            height: 1rem;
-            margin: 0;
-        }
-
-        #level-number[data-level-state="failed"] {
-            color: #b42318;
-        }
-
-        #level-number[data-level-state="passed"] {
-            color: #087a36;
-        }
-
-        #challenge-panel, #results-panel {
-            padding: 1rem;
-        }
-
-        #challenge-panel {
-            border-bottom: 1px solid;
-        }
-
-        #challenge-panel > h2, #results-panel > h2 {
-            margin-top: 0;
-        }
-
-        .preview-heading {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .preview-heading h3 {
-            margin-block: 1em;
-        }
-
-        .preview-info {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            font-size: 0.8rem;
-            opacity: 0.75;
-        }
-
-        .preview-info .lucide {
-            width: 1em;
-            height: 1em;
-            flex: none;
-        }
-
-        #refresh-previews {
-            margin-left: auto;
-        }
-
-        #level-navigation {
-            flex: 1;
-            min-height: 0;
-            padding: 1rem;
-            overflow-y: auto;
-        }
-
-        #level-navigation[hidden] {
-            display: none;
-        }
-
-        #level-navigation h2 {
-            margin-top: 0;
-        }
-
-        #level-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
-            gap: 0.5rem;
-        }
-
-        #level-grid button {
-            display: grid;
-            gap: 0.15rem;
-            padding: 0.65rem;
-            text-align: left;
-        }
-
-        #level-grid button[aria-current="step"] {
-            outline: 2px solid;
-        }
-
-        #level-grid button[data-level-state="failed"] {
-            color: #7a271a;
-            background: #fecdca;
-        }
-
-        #level-grid button[data-level-state="passed"] {
-            color: #05603a;
-            background: #abefc6;
-        }
-
-        .level-grid-time {
-            font-size: 0.75rem;
-            opacity: 0.8;
-        }
-
-        main[data-browsing="true"] #challenge-panel,
-        main[data-browsing="true"] #results-panel {
-            display: none;
-        }
-
-        #result-content > :last-child {
-            margin-bottom: 0;
-        }
-
-        #mobile-tabs {
-            display: none;
-        }
-
-        @media (max-width: 48rem) {
-            main {
-                display: grid;
-                grid-template: auto auto minmax(0, 1fr) / minmax(0, 1fr);
-            }
-
-            #task-rail {
-                display: contents;
-            }
-
-            #level-header {
-                position: static;
-                grid-row: 1;
-                grid-column: 1;
-                padding: 0.5rem;
-                gap: 0.25rem;
-            }
-
-            #level-number {
-                padding-inline: 0.4rem;
-            }
-
-            #mobile-tabs {
-                display: grid;
-                grid-row: 2;
-                grid-column: 1;
-                grid-template-columns: repeat(3, 1fr);
-                border-bottom: 1px solid;
-            }
-
-            #mobile-tabs button {
-                border-top: 0;
-            }
-
-            #mobile-tabs button[aria-selected="true"] {
-                font-weight: bold;
-            }
-
-            #workspace-divider {
-                display: none;
-            }
-
-            #code-panel, #challenge-panel, #results-panel {
-                display: none;
-                grid-row: 3;
-                grid-column: 1;
-                min-height: 0;
-                overflow-y: auto;
-            }
-
-            #code-panel {
-                padding: 0.75rem;
-            }
-
-            #challenge-panel {
-                border-bottom: 0;
-            }
-
-            main[data-mobile-tab="code"] #code-panel,
-            main[data-mobile-tab="challenge"] #challenge-panel,
-            main[data-mobile-tab="results"] #results-panel {
-                display: block;
-            }
-
-            main[data-mobile-tab="code"] #code-panel {
-                display: flex;
-            }
-
-            main[data-browsing="true"] #mobile-tabs,
-            main[data-browsing="true"] #code-panel,
-            main[data-browsing="true"] #challenge-panel,
-            main[data-browsing="true"] #results-panel {
-                display: none;
-            }
-
-            main[data-browsing="true"] #level-navigation {
-                display: block;
-                grid-row: 2 / 4;
-                grid-column: 1;
-                min-height: 0;
-                overflow-y: auto;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="./styles.css">
 </head>
-<body>
-    <main id="workspace" data-mobile-tab="code">
-        <section id="code-panel" role="tabpanel" aria-labelledby="code-tab">
-            <div id="code-version-toolbar">
-                <select id="code-version" aria-label="Code version"></select>
-                <button id="add-code-version" type="button" aria-label="Create code version">
+<body class="h-full overflow-hidden bg-zinc-950 font-sans text-sm text-zinc-200 antialiased selection:bg-violet-400/30">
+    <main
+        id="workspace"
+        class="group/workspace grid h-dvh min-h-0 grid-cols-1 grid-rows-[2.5rem_2.25rem_minmax(0,1fr)] overflow-hidden bg-zinc-950 md:grid-cols-[minmax(0,1fr)_0.375rem_minmax(18rem,var(--task-rail-width))] md:grid-rows-1"
+        data-mobile-tab="code"
+    >
+        <section
+            id="code-panel"
+            class="row-start-3 hidden min-h-0 min-w-0 flex-col gap-1.5 overflow-hidden p-2 group-data-[browsing=true]/workspace:!hidden group-data-[mobile-tab=code]/workspace:flex md:col-start-1 md:row-start-1 md:flex md:p-2.5 [&_.cm-activeLine]:!bg-zinc-800/70 [&_.cm-activeLineGutter]:!bg-zinc-800/70 [&_.cm-content]:caret-violet-300 [&_.cm-editor]:h-full [&_.cm-editor]:!bg-zinc-950 [&_.cm-editor]:font-mono [&_.cm-editor]:!text-zinc-200 [&_.cm-editor]:[color-scheme:dark] [&_.cm-editor.cm-focused]:outline-none [&_.cm-gutter]:!bg-zinc-900 [&_.cm-gutters]:!border-r [&_.cm-gutters]:!border-zinc-800 [&_.cm-gutters]:!bg-zinc-900 [&_.cm-gutters]:!text-zinc-600 [&_.cm-scroller]:font-mono [&_.cm-scroller]:[color-scheme:dark] [&_.cm-scroller]:[scrollbar-color:#52525b_#18181b]"
+            role="tabpanel"
+            aria-labelledby="code-tab"
+        >
+            <div id="code-version-toolbar" class="flex h-8 shrink-0 gap-1">
+                <div class="relative min-w-0 flex-1">
+                    <select
+                        id="code-version"
+                        class="h-full w-full appearance-none rounded border border-zinc-700 bg-zinc-900 py-0 pr-8 pl-2 text-xs text-zinc-200 outline-none hover:border-zinc-600 focus:border-violet-400 focus:ring-1 focus:ring-violet-400"
+                        aria-label="Code version"
+                    ></select>
+                    <i
+                        class="pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2 text-zinc-500"
+                        data-lucide="chevron-down"
+                        aria-hidden="true"
+                    ></i>
+                </div>
+                <button
+                    id="add-code-version"
+                    class="grid size-8 place-items-center rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 disabled:cursor-not-allowed disabled:opacity-40 [&_.lucide]:size-4"
+                    type="button"
+                    aria-label="Create code version"
+                >
                     <i data-lucide="plus"></i>
                 </button>
-                <button id="rename-code-version" type="button">Rename</button>
-                <button id="delete-code-version" type="button">Delete</button>
+                <button
+                    id="rename-code-version"
+                    class="h-8 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 disabled:cursor-not-allowed disabled:opacity-40"
+                    type="button"
+                >Rename</button>
+                <button
+                    id="delete-code-version"
+                    class="h-8 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-400 hover:border-red-500/60 hover:bg-red-500/10 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+                    type="button"
+                >Delete</button>
             </div>
-            <div id="editor"></div>
+            <div id="editor" class="min-h-0 flex-1 overflow-hidden rounded border border-zinc-800 bg-zinc-950"></div>
         </section>
 
         <div
             id="workspace-divider"
+            class="hidden cursor-col-resize touch-none border-l border-zinc-800 bg-zinc-900 hover:bg-violet-500/40 focus:bg-violet-500/40 focus:outline-none md:col-start-2 md:row-start-1 md:block"
             role="separator"
             aria-label="Resize code editor and task panel"
             aria-orientation="vertical"
@@ -350,19 +64,27 @@
             tabindex="0"
         ></div>
 
-        <aside id="task-rail" aria-label="Current level">
-            <header id="level-header">
+        <aside
+            id="task-rail"
+            class="contents min-h-0 min-w-0 border-zinc-800 group-data-[browsing=true]/workspace:[&>#challenge-panel]:!hidden group-data-[browsing=true]/workspace:[&>#results-panel]:!hidden md:col-start-3 md:row-start-1 md:flex md:flex-col md:overflow-y-auto md:border-l"
+            aria-label="Current level"
+        >
+            <header
+                id="level-header"
+                class="col-start-1 row-start-1 grid h-10 grid-cols-[2rem_minmax(0,1fr)_2rem_2rem_auto] items-center gap-1 border-b border-zinc-800 bg-zinc-950 px-1.5 md:sticky md:top-0 md:z-10 md:shrink-0 [&>button]:grid [&>button]:h-8 [&>button]:place-items-center [&>button]:rounded [&>button]:border [&>button]:border-zinc-700 [&>button]:bg-zinc-900 [&>button]:text-xs [&>button]:text-zinc-300 [&>button]:hover:border-zinc-500 [&>button]:hover:bg-zinc-800 [&>button]:hover:text-white [&>button]:focus-visible:outline-2 [&>button]:focus-visible:outline-offset-2 [&>button]:focus-visible:outline-violet-400 [&>button]:disabled:cursor-not-allowed [&>button]:disabled:opacity-35 [&_.lucide]:size-4"
+            >
                 <button id="previous-level" type="button" aria-label="Previous level">
                     <i data-lucide="arrow-left"></i>
                 </button>
                 <button
                     id="level-number"
+                    class="!flex min-w-0 items-center justify-center gap-1 px-2 font-semibold data-[level-state=failed]:!border-red-500/50 data-[level-state=failed]:!bg-red-500/10 data-[level-state=failed]:!text-red-300 data-[level-state=passed]:!border-emerald-500/40 data-[level-state=passed]:!bg-emerald-500/10 data-[level-state=passed]:!text-emerald-300 [&_.lucide]:shrink-0"
                     type="button"
                     aria-label="Browse unlocked levels"
                     aria-controls="level-navigation"
                     aria-expanded="false"
                 >
-                    <span id="level-number-label"></span>
+                    <span id="level-number-label" class="truncate"></span>
                     <i data-lucide="chevron-down"></i>
                 </button>
                 <button id="next-level" type="button" aria-label="Next unlocked level">
@@ -376,10 +98,20 @@
                 >
                     <i data-lucide="arrow-right-to-line"></i>
                 </button>
-                <button id="run" type="button" title="Run (Ctrl+Enter or Command+Enter)">Run</button>
+                <button
+                    id="run"
+                    class="!border-violet-400 !bg-violet-400 px-3 !font-semibold !text-zinc-950 hover:!border-violet-300 hover:!bg-violet-300"
+                    type="button"
+                    title="Run (Ctrl+Enter or Command+Enter)"
+                >Run</button>
             </header>
 
-            <nav id="mobile-tabs" role="tablist" aria-label="Game workspace">
+            <nav
+                id="mobile-tabs"
+                class="col-start-1 row-start-2 grid grid-cols-3 border-b border-zinc-800 bg-zinc-950 group-data-[browsing=true]/workspace:!hidden md:hidden [&_button]:border-r [&_button]:border-zinc-800 [&_button]:text-xs [&_button]:text-zinc-500 [&_button]:hover:bg-zinc-900 [&_button]:hover:text-zinc-200 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:-outline-offset-2 [&_button]:focus-visible:outline-violet-400 [&_button:last-child]:border-r-0 [&_button[aria-selected=true]]:bg-zinc-900 [&_button[aria-selected=true]]:font-semibold [&_button[aria-selected=true]]:text-violet-300"
+                role="tablist"
+                aria-label="Game workspace"
+            >
                 <button
                     id="challenge-tab"
                     type="button"
@@ -408,43 +140,73 @@
                 >Results</button>
             </nav>
 
-            <section id="challenge-panel" role="tabpanel" aria-labelledby="challenge-tab">
-                <h2>Challenge</h2>
-                <div class="preview-heading">
-                    <h3>Input</h3>
+            <section
+                id="challenge-panel"
+                class="col-start-1 row-start-3 hidden min-h-0 overflow-y-auto border-zinc-800 p-2.5 group-data-[mobile-tab=challenge]/workspace:block md:block md:shrink-0 md:border-b md:p-3"
+                role="tabpanel"
+                aria-labelledby="challenge-tab"
+            >
+                <div class="mb-2 flex items-center justify-between">
+                    <h2 class="text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-zinc-500">Challenge</h2>
+                    <button
+                        id="refresh-previews"
+                        class="h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-[0.6875rem] text-zinc-400 hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 disabled:cursor-not-allowed disabled:opacity-40"
+                        type="button"
+                    >Refresh</button>
+                </div>
+                <div class="mb-1 flex items-center gap-2">
+                    <h3 class="text-xs font-semibold text-zinc-200">Input</h3>
                     <span
-                        class="preview-info"
+                        class="inline-flex items-center gap-1 text-[0.625rem] text-zinc-600 [&_.lucide]:size-3"
                         title="This preview is rendered using your code's render() function."
                     >
                         <i data-lucide="info"></i>
-                        Rendered with your <code>render()</code>
+                        <span>via <code class="text-zinc-500">render()</code></span>
                     </span>
-                    <button id="refresh-previews" type="button">Refresh previews</button>
                 </div>
-                <pre><code id="level-input"></code></pre>
-                <div class="preview-heading">
-                    <h3>Expected output</h3>
+                <pre class="mb-3 min-h-8 whitespace-pre-wrap break-words rounded border border-zinc-800 bg-zinc-900/60 p-2 font-mono text-xs leading-relaxed text-zinc-300"><code id="level-input"></code></pre>
+                <div class="mb-1 flex items-center gap-2">
+                    <h3 class="text-xs font-semibold text-zinc-200">Expected output</h3>
                     <span
-                        class="preview-info"
+                        class="inline-flex items-center gap-1 text-[0.625rem] text-zinc-600 [&_.lucide]:size-3"
                         title="This preview is rendered using your code's render() function."
                     >
                         <i data-lucide="info"></i>
-                        Rendered with your <code>render()</code>
+                        <span>via <code class="text-zinc-500">render()</code></span>
                     </span>
                 </div>
-                <pre><code id="level-output"></code></pre>
+                <pre class="min-h-8 whitespace-pre-wrap break-words rounded border border-zinc-800 bg-zinc-900/60 p-2 font-mono text-xs leading-relaxed text-zinc-300"><code id="level-output"></code></pre>
             </section>
 
-            <section id="results-panel" role="tabpanel" aria-labelledby="results-tab">
-                <h2>Results</h2>
-                <div id="status" role="status" aria-live="polite" aria-atomic="true">
+            <section
+                id="results-panel"
+                class="col-start-1 row-start-3 hidden min-h-0 overflow-y-auto p-2.5 group-data-[mobile-tab=results]/workspace:block md:block md:flex-1 md:p-3"
+                role="tabpanel"
+                aria-labelledby="results-tab"
+            >
+                <h2 class="mb-2 text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-zinc-500">Results</h2>
+                <div
+                    id="status"
+                    class="text-xs leading-relaxed text-zinc-400 [&_.diff-line]:font-mono [&_.diff-line-actual]:text-red-400 [&_.diff-line-expected]:text-emerald-400 [&_button]:mr-1 [&_button]:mt-2 [&_button]:h-7 [&_button]:rounded [&_button]:border [&_button]:border-zinc-700 [&_button]:bg-zinc-900 [&_button]:px-2 [&_button]:text-[0.6875rem] [&_button]:text-zinc-300 [&_button]:hover:border-zinc-500 [&_button]:hover:bg-zinc-800 [&_button]:hover:text-white [&_del]:bg-emerald-400/15 [&_del]:text-emerald-300 [&_del]:no-underline [&_ins]:bg-red-400/15 [&_ins]:text-red-300 [&_ins]:no-underline [&_p]:my-2 [&_pre]:my-1 [&_pre]:min-h-6 [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_strong]:text-zinc-100"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                >
                     <div id="result-content">Ready to run.</div>
                 </div>
             </section>
 
-            <nav id="level-navigation" aria-label="Unlocked levels" hidden>
-                <h2>Unlocked levels</h2>
-                <div id="level-grid"></div>
+            <nav
+                id="level-navigation"
+                class="col-start-1 row-[2/4] min-h-0 overflow-y-auto bg-zinc-950 p-2.5 md:flex-1 md:p-3"
+                aria-label="Unlocked levels"
+                hidden
+            >
+                <h2 class="mb-2 text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-zinc-500">Unlocked levels</h2>
+                <div
+                    id="level-grid"
+                    class="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-1.5 [&_button]:grid [&_button]:gap-0.5 [&_button]:rounded [&_button]:border [&_button]:border-zinc-800 [&_button]:bg-zinc-900/60 [&_button]:p-2 [&_button]:text-left [&_button]:text-zinc-300 [&_button]:hover:border-zinc-600 [&_button]:hover:bg-zinc-800 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-2 [&_button]:focus-visible:outline-violet-400 [&_button[aria-current=step]]:border-violet-400 [&_button[aria-current=step]]:ring-1 [&_button[aria-current=step]]:ring-violet-400 [&_button[data-level-state=failed]]:border-red-500/40 [&_button[data-level-state=failed]]:bg-red-500/10 [&_button[data-level-state=failed]]:text-red-300 [&_button[data-level-state=passed]]:border-emerald-500/30 [&_button[data-level-state=passed]]:bg-emerald-500/10 [&_button[data-level-state=passed]]:text-emerald-300 [&_small]:text-[0.625rem] [&_small]:font-normal [&_small]:text-zinc-600"
+                ></div>
             </nav>
         </aside>
     </main>
