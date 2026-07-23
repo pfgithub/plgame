@@ -9,6 +9,8 @@ import {
     ArrowRight,
     ArrowRightToLine,
     ChevronDown,
+    CircleX,
+    createElement as createIconElement,
     createIcons,
     Info,
     Plus,
@@ -485,13 +487,27 @@ function renderLevelGrid(): void {
         button.type = "button";
         button.dataset.levelState = itemState;
         const name = document.createElement("strong");
-        name.textContent = `Level ${levelIndex + 1}`;
+        const nameLabel = document.createElement("span");
+        nameLabel.textContent = `Level ${levelIndex + 1}`;
+        name.append(nameLabel);
         const executionTimeMs = renderedLevels[levelIndex]?.executionTimeMs;
         const timing = document.createElement("small");
         timing.className = "level-grid-time";
-        timing.textContent = executionTimeMs === undefined
+        const executionTime = executionTimeMs === undefined
             ? "Not run"
             : `${executionTimeMs.toFixed(2)} ms`;
+        if (itemState === "failed") {
+            timing.className += " flex items-center gap-1 !text-red-300";
+            const failureIcon = createIconElement(CircleX, {
+                "aria-hidden": "true",
+                "class": "lucide lucide-circle-x shrink-0",
+                "height": 12,
+                "width": 12,
+            });
+            timing.append(failureIcon, `Failed · ${executionTime}`);
+        } else {
+            timing.textContent = executionTime;
+        }
         button.replaceChildren(name, timing);
         button.setAttribute(
             "aria-label",
