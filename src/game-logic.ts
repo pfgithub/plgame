@@ -5,110 +5,54 @@ export const DEFAULT_CODE = `function execute(tokens) {
     return tokens;
 }`;
 
-export type TokenNames = Record<string, string>;
-
 export type GameState = {
     code: string,
-    tokenNames: TokenNames,
     levelIndex: number,
     highestLevelIndex: number,
 };
 
 export type LevelFailure = {
     levelIndex: number,
-    expected: string[],
-    actual?: string[],
+    expected: number[],
+    actual?: number[],
     error?: Error,
 };
 
 export type ProgressionResult =
-    | {kind: "blocked", levelIndex: number, pastFailures: LevelFailure[]}
     | {kind: "past-failures", levelIndex: number, pastFailures: LevelFailure[]}
     | {kind: "failed", levelIndex: number, failure: LevelFailure, pastFailures: LevelFailure[]}
     | {kind: "complete", levelIndex: number, pastFailures: LevelFailure[]};
 
-type Runner = (code: string, inputs: string[][]) => Promise<CodeExecutionResult[]>;
+type Runner = (code: string, inputs: number[][]) => Promise<CodeExecutionResult[]>;
 
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 
 export function defaultState(): GameState {
     return {
         code: DEFAULT_CODE,
-        tokenNames: {},
         levelIndex: 0,
         highestLevelIndex: 0,
     };
 }
 
-export function levelTokens(level: Level): Token[] {
-    return [...new Set([...level.input, ...level.output])];
-}
-
-export function isLevelNamed(level: Level, tokenNames: TokenNames): boolean {
-    return levelTokens(level).every(token => tokenNames[token] !== undefined);
-}
-
-export function validateTokenName(
-    tokenNames: TokenNames,
-    token: Token,
-    proposedName: string,
-): string | undefined {
-    const name = proposedName.trim();
-    if (name === "") return "A token name cannot be empty.";
-
-    const duplicate = Object.entries(tokenNames).find(
-        ([otherToken, otherName]) => otherToken !== token && otherName === name,
-    );
-    if (duplicate) return `The name "${name}" is already in use.`;
-
-    return undefined;
-}
-
-export function tokensToNames(tokens: Token[], tokenNames: TokenNames): string[] {
-    return tokens.map((token) => {
-        const name = tokenNames[token];
-        if (name === undefined) throw new Error(`Token "${token}" is unnamed.`);
-        return name;
-    });
-}
-
-export function namesToTokens(names: string[], tokenNames: TokenNames): Token[] | undefined {
-    const reverseNames = new Map(
-        Object.entries(tokenNames).map(([token, name]) => [name, token as Token]),
-    );
-    const tokens: Token[] = [];
-    for (const name of names) {
-        const token = reverseNames.get(name);
-        if (token === undefined) return undefined;
-        tokens.push(token);
-    }
-    return tokens;
-}
-
-export function arraysEqual(left: string[], right: string[]): boolean {
+export function arraysEqual(left: number[], right: number[]): boolean {
     return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 export async function runProgression(
     code: string,
-    tokenNames: TokenNames,
     levels: Level[],
     currentLevelIndex: number,
     runner: Runner,
 ): Promise<ProgressionResult> {
-    const runnableLevels: Array<{levelIndex: number, input: string[], expected: string[]}> = [];
-    let blockedLevelIndex: number | undefined;
+    const runnableLevels: Array<{levelIndex: number, input: Token[], expected: Token[]}> = [];
     for (let levelIndex = 0; levelIndex < levels.length; levelIndex++) {
         const level = levels[levelIndex];
         if (!level) throw new Error(`Missing level ${levelIndex + 1}.`);
-        if (!isLevelNamed(level, tokenNames)) {
-            blockedLevelIndex = levelIndex;
-            break;
-        }
         runnableLevels.push({
             levelIndex,
-            input: tokensToNames(level.input, tokenNames),
-            expected: tokensToNames(level.output, tokenNames),
+            input: level.input,
+            expected: level.output,
         });
     }
 
@@ -140,9 +84,6 @@ export async function runProgression(
     const pastFailures: LevelFailure[] = [];
     let currentFailure: LevelFailure | undefined;
     for (let levelIndex = 0; levelIndex <= currentLevelIndex; levelIndex++) {
-        if (levelIndex === blockedLevelIndex) {
-            return {kind: "blocked", levelIndex, pastFailures};
-        }
         const failure = failures[levelIndex];
         if (failure && levelIndex < currentLevelIndex) pastFailures.push(failure);
         if (failure && levelIndex === currentLevelIndex) currentFailure = failure;
@@ -156,9 +97,6 @@ export async function runProgression(
     }
 
     for (let levelIndex = currentLevelIndex + 1; levelIndex < levels.length; levelIndex++) {
-        if (levelIndex === blockedLevelIndex) {
-            return {kind: "blocked", levelIndex, pastFailures};
-        }
         const failure = failures[levelIndex];
         if (failure) return {kind: "failed", levelIndex, failure, pastFailures};
     }
@@ -179,23 +117,13 @@ export function parseState(serialized: string | null, levelCount: number): GameS
 
         const saved = value as Record<string, unknown>;
         if (
-            (saved.version !== 1 && saved.version !== STORAGE_VERSION)
+            (saved.version !== 1 && saved.version !== 2 && saved.version !== STORAGE_VERSION)
             || typeof saved.code !== "string"
             || !Number.isInteger(saved.levelIndex)
             || typeof saved.levelIndex !== "number"
             || saved.levelIndex < 0
             || saved.levelIndex >= levelCount
-            || typeof saved.tokenNames !== "object"
-            || saved.tokenNames === null
-            || Array.isArray(saved.tokenNames)
         ) return defaultState();
-
-        const entries = Object.entries(saved.tokenNames);
-        if (entries.some(([, name]) => typeof name !== "string" || name.trim() === "")) {
-            return defaultState();
-        }
-        const names = entries.map(([, name]) => name);
-        if (new Set(names).size !== names.length) return defaultState();
 
         const highestLevelIndex = saved.version === 1
             ? saved.levelIndex
@@ -209,7 +137,6 @@ export function parseState(serialized: string | null, levelCount: number): GameS
 
         return {
             code: saved.code,
-            tokenNames: Object.fromEntries(entries) as TokenNames,
             levelIndex: saved.levelIndex,
             highestLevelIndex,
         };

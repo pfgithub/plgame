@@ -4,13 +4,10 @@ import { keymap } from "@codemirror/view";
 import { basicSetup, EditorView } from "codemirror";
 import { runCode } from "./executor.ts";
 import {
-    isLevelNamed,
     type LevelFailure,
-    levelTokens,
     parseState,
     runProgression,
     serializeState,
-    validateTokenName,
 } from "./game-logic.ts";
 import { levels, type Token } from "./levels.ts";
 
@@ -74,49 +71,11 @@ function setStatus(message: string): void {
     status.textContent = message;
 }
 
-function beginRename(token: Token, button: HTMLButtonElement): void {
-    const nameInput = document.createElement("input");
-    nameInput.className = "token-name";
-    nameInput.value = state.tokenNames[token] ?? "";
-    nameInput.placeholder = "name";
-    nameInput.setAttribute("aria-label", "Token name");
-    button.replaceWith(nameInput);
-    nameInput.focus();
-    nameInput.select();
-
-    let finished = false;
-    const finish = (commit: boolean): void => {
-        if (finished) return;
-        finished = true;
-
-        if (commit) {
-            const error = validateTokenName(state.tokenNames, token, nameInput.value);
-            if (error) {
-                renderLevel();
-                setStatus(error);
-                return;
-            }
-            state.tokenNames[token] = nameInput.value.trim();
-            save();
-        }
-        renderLevel();
-    };
-
-    nameInput.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") finish(true);
-        if (event.key === "Escape") finish(false);
-    });
-    nameInput.addEventListener("blur", () => finish(true));
-}
-
 function renderTokens(parent: HTMLElement, tokens: Token[]): void {
     parent.replaceChildren(...tokens.map((token) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = state.tokenNames[token] ?? "unnamed";
-        button.title = "Click to name this token";
-        button.addEventListener("click", () => beginRename(token, button));
-        return button;
+        const value = document.createElement("span");
+        value.textContent = String(token);
+        return value;
     }));
 }
 
@@ -167,16 +126,9 @@ function renderLevel(): void {
     levelNumber.textContent = `Level ${state.levelIndex + 1} of ${levels.length}`;
     renderTokens(inputTokens, level.input);
     renderTokens(outputTokens, level.output);
-    runButton.disabled = running || !isLevelNamed(level, state.tokenNames);
+    runButton.disabled = running;
 
-    if (!running && !isLevelNamed(level, state.tokenNames)) {
-        const unnamedCount = levelTokens(level).filter(
-            token => state.tokenNames[token] === undefined,
-        ).length;
-        setStatus(`Name ${unnamedCount} token${unnamedCount === 1 ? "" : "s"} to run this level.`);
-    } else if (!running) {
-        setStatus("Ready to run.");
-    }
+    if (!running) setStatus("Ready to run.");
 }
 
 function render(): void {
@@ -203,10 +155,8 @@ runButton.addEventListener("click", async () => {
     render();
     setStatus("Running…");
 
-    const previousLevel = state.levelIndex;
     const result = await runProgression(
         editor.state.doc.toString(),
-        state.tokenNames,
         levels,
         state.levelIndex,
         runCode,
@@ -218,12 +168,7 @@ runButton.addEventListener("click", async () => {
     save();
     render();
 
-    if (result.kind === "blocked") {
-        const prefix = result.levelIndex > previousLevel
-            ? `Passed through level ${result.levelIndex}. `
-            : "";
-        setStatus(`${prefix}Name every token in level ${result.levelIndex + 1} to continue.`);
-    } else if (result.kind === "past-failures") {
+    if (result.kind === "past-failures") {
         setStatus("This level passed, but every earlier level must also pass before you can continue.");
     } else if (result.kind === "failed") {
         if (result.failure.error) {

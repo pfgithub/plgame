@@ -80,14 +80,8 @@ function level(input: string, output: string): Level {
     return {raw: input, input: tokenize(input), output: tokenize(output)};
 }
 
-// symbols will get named a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z?
-// or 0,1,2,3,4,5,6,7,8,9,10,11,12,...
-// ^ don't want to do that because that gives an order to numbers that we're trying to keep secret for a little bit
-// ^ or they start as "unnamed" and you click to name them <- I like this
-
 // note we could choose to do hex numbers in this game
 // actually let's do base 6? or base 8
-// why?=less unnamed sigils to figure out
 // ok base 6. or even base 4? no 6
 export const levels: Level[] = [
     // while true: replaceAll(/0[^#]/, "") replaceAll(/[^0]#/, "0#")

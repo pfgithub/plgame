@@ -1,8 +1,8 @@
 export type CodeExecutionResult =
-    | {ok: true, result: string[]}
+    | {ok: true, result: number[]}
     | {ok: false, error: Error};
 
-export function runCode(code: string, inputs: string[][]): Promise<CodeExecutionResult[]> {
+export function runCode(code: string, inputs: number[][]): Promise<CodeExecutionResult[]> {
     const EXECUTION_TIMEOUT_MS = 1_000;
     const SETUP_TIMEOUT_MS = 2_000;
 
@@ -46,7 +46,7 @@ export function runCode(code: string, inputs: string[][]): Promise<CodeExecution
             type RunRequest = {
                 type: "run",
                 code: string,
-                inputs: string[][],
+                inputs: number[][],
                 timeoutMs: number,
             };
 
@@ -60,7 +60,7 @@ export function runCode(code: string, inputs: string[][]): Promise<CodeExecution
                 | {
                     ok: true,
                     results: Array<
-                        | {ok: true, result: string[]}
+                        | {ok: true, result: number[]}
                         | {ok: false, error: SerializedError}
                     >,
                 }
@@ -88,7 +88,7 @@ export function runCode(code: string, inputs: string[][]): Promise<CodeExecution
                 self.addEventListener("message", async (event) => {
                     const {code, inputs} = event.data as {
                         code: string,
-                        inputs: string[][],
+                        inputs: number[][],
                     };
 
                     try {
@@ -112,11 +112,11 @@ if (typeof execute !== "function") {
 
 return execute;
 `,
-                        ) as () => (input: string[]) => unknown;
+                        ) as () => (input: number[]) => unknown;
 
                         const execute = createExecute();
                         const results: Array<
-                            | {ok: true, result: string[]}
+                            | {ok: true, result: number[]}
                             | {ok: false, error: SerializedError}
                         > = [];
 
@@ -126,13 +126,13 @@ return execute;
 
                                 if (!Array.isArray(result)) {
                                     throw new TypeError(
-                                        "execute(input) must return a string array or a Promise<string[]>.",
+                                        "execute(input) must return a number array or a Promise<number[]>.",
                                     );
                                 }
 
-                                if (!result.every(value => typeof value === "string")) {
+                                if (!result.every(value => typeof value === "number")) {
                                     throw new TypeError(
-                                        "Every value returned by execute(input) must be a string.",
+                                        "Every value returned by execute(input) must be a number.",
                                     );
                                 }
 
@@ -281,7 +281,7 @@ return execute;
                 | {
                     ok: true,
                     results: Array<
-                        | {ok: true, result: string[]}
+                        | {ok: true, result: number[]}
                         | {
                             ok: false,
                             error: {
