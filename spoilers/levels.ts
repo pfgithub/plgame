@@ -117,13 +117,21 @@ const levels: Level[][] = [
     // replaceAll i1=>2,i2=>3,i3=>4,i4=>5
     [
         level("incr 1#", "2#"),
-        level("incr incr 01#", "21#"),
+        level("incr incr 0#", "2#"),
         level("incr incr incr 0#", "3#"),
         level("incr incr incr incr 0#", "4#"),
         level("incr incr 2#", "4#"),
         level("incr incr 3#", "5#"),
         level("incr 4#", "5#"),
         level("incr incr incr incr incr 0#", "5#"),
+        level("incr 11#", "21#"),
+        level("incr 15#", "25#"),
+        level("incr 13#", "23#"),
+        level("incr 101#", "201#"),
+        level("incr 201#", "301#"),
+        level("incr 1# incr 2#", "2# 3#"),
+        level("incr 4# incr 2#", "5# 3#"),
+        level("incr 4# incr incr 2#", "5# 4#"),
     ],
     // newline
     [
@@ -134,6 +142,9 @@ const levels: Level[][] = [
         level("1234# 05#\n203#", "203# 1234# 05#"),
         // incr newline
         level("1#\nincr", "2#"),
+        level("1# 4#\nincr", "2# 4#"),
+        level("1# 4#\n3# incr", "3# 2# 4#"),
+        level("2# 4#\n3# incr 0#", "3# 1# 2# 4#"),
     ],
     // variables
     [
