@@ -15,7 +15,7 @@ const indexToToken = [
     "kill",
     "index",
     "incr",
-    "reserved1",
+    "reserved0",
 
     // some math fns
     "add",
@@ -37,8 +37,8 @@ const indexToToken = [
     "list_push",
     "true",
     "false",
-    "reserved2",
-    "reserved3",
+    "fn",
+    "call",
 
     // some errors
     "ERR_no_exit",
@@ -367,6 +367,23 @@ const levels: Level[][] = [
         level("[", "ERR_no_exit"),
     ],
 
+    // function
+    [
+        // well this is really annoying to parse and kind of weird
+        // we could maybe make [] be for functions instead and it would be much easier
+        // setvar 25 []
+        // oh except multiline wouldn't really work right
+        level("fn\n\t25#", "fn"),
+        level("fn\n\tincr 25#", "fn"),
+        level("fn\n\tadd 12# 25#", "fn"),
+        level("call fn\n\t43#", "43#"),
+        level("fn\n\t43#\ncall", "43#"),
+        level("fn\n\tincr 43#\ncall", "53#"),
+        level("fn\n\t5# 4# 3# 2# 1#\ncall", "5# 4# 3# 2# 1#"),
+        level("fn\n\tfn\n\t\t5#\ncall", "fn"),
+        level("fn\n\tfn\n\t\t5#\ncall call", "5#"),
+    ],
+
     // cases marking the specific function of numbers
     [
         level("1# incr 1#", "1# 2#"),
@@ -388,7 +405,7 @@ const levels: Level[][] = [
 ];
 
 function execute(level: Token[]): Token[] {
-    type StackValue = number | unknown;
+    type StackValue = number | StackValue[] | boolean | {kind: "fn", value: ParsedToken[][]};
     const stackstack: StackValue[][] = [];
     let stack: StackValue[] = [];
     const scope = new Map<number, StackValue>();
@@ -419,6 +436,13 @@ function execute(level: Token[]): Token[] {
         }
         return last;
     };
+    const getfn = (): {kind: "fn", value: ParsedToken[][]} => {
+        const last = get();
+        if (typeof last !== "object" || Array.isArray(last) || last.kind !== "fn") {
+            throw new Error("ERR_not_fn");
+        }
+        return last;
+    };
     const put = (v: StackValue) => stack.push(v);
     const num = (n: number) => {
         put(getnum() * 6 + n);
@@ -426,7 +450,8 @@ function execute(level: Token[]): Token[] {
     function error(msg: string): never {
         throw new Error(msg);
     };
-    const executors: Record<string, () => void> = {
+    type ParsedToken = {t: string, v: ParsedToken[][]};
+    const executors: Record<string, (v: ParsedToken[][]) => void> = {
         "0": () => num(0),
         "1": () => num(1),
         "2": () => num(2),
@@ -471,29 +496,59 @@ function execute(level: Token[]): Token[] {
         "false": () => put(false),
         "setvar": () => scope.set(getnum(), get()),
         "getvar": () => put(scope.get(getnum()) ?? error("ERR_no_var")),
+        "fn": args => put({kind: "fn", value: args}),
+        "call": () => execute(getfn().value),
+    };
+    const executeLine = (line: ParsedToken[]) => {
+        for (const token of [...line].reverse()) {
+            const xc = executors[token.t];
+            if (!xc) error(`execution not implemented for token: ${JSON.stringify(token)}`);
+            if (xc.length === 0 && token.v.length > 0) {
+                error("ERR_bad_indent");
+            }
+            xc(token.v);
+        }
+    };
+    const execute = (lines: ParsedToken[][]) => {
+        for (const line of lines) executeLine(line);
     };
     try {
         // 1. split by line
-        const current: Token[] = [];
-        const executeLine = () => {
-            for (const index of [...current].reverse()) {
-                const token = indexToToken[index]!;
-                const xc = executors[token];
-                if (!xc) error(`execution not implemented for token: ${JSON.stringify(token)}`);
-                xc();
-            }
-            current.splice(0, current.length);
-        };
+        const parsed: ParsedToken[][] = [];
+        let target: ParsedToken[] = [];
+        const targetStack: ParsedToken[][][] = [parsed]; // 0 indents, 1 indent, 2 indents
+        parsed.push(target);
+        let indentCount = 0;
         for (let i = 0; i < level.length; i++) {
-            const index = level[i]!;
-            const token = indexToToken[index]!;
+            const token = indexToToken[level[i]!]!;
             if (token === "\n") {
-                executeLine();
+                const lastToken = target[target.length - 1];
+                if (lastToken) {
+                    targetStack[indentCount + 1] = lastToken.v;
+                }
+
+                // eat '\t' tokens
+                indentCount = 0;
+                while (indexToToken[level[i + 1] ?? -1] === "\t") {
+                    indentCount += 1;
+                    i += 1;
+                }
+
+                const deleteFrom = indentCount + 1;
+                targetStack.splice(deleteFrom, targetStack.length - deleteFrom);
+
+                const dst = targetStack[indentCount];
+                if (!dst) error("ERR_bad_indent");
+
+                target = [];
+                dst.push(target);
+            } else if (token === "\t") {
+                error("ERR_bad_indent");
             } else {
-                current.push(index);
+                target.push({t: token, v: []});
             }
         }
-        executeLine();
+        execute(parsed);
 
         // now, convert stack to outcome
         const result: Token[] = [];
@@ -508,6 +563,10 @@ function execute(level: Token[]): Token[] {
                     result.push(toToken("["));
                     putresult(item);
                     result.push(toToken("]"));
+                } else if (typeof item === "object") {
+                    if (item.kind === "fn") {
+                        result.push(toToken("fn"));
+                    } else throw new Error(`execution todo support resulting stack value kind: ${item.kind}`);
                 } else throw new Error(`execution todo support resulting stack value: ${typeof item}`);
             }
         };
