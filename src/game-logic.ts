@@ -17,13 +17,13 @@ export const DEFAULT_CODE = `//        .__
 
 // Write code in execute() to solve the level
 function execute(tokens) {
-    return tokens;
+  return tokens;
 }
 // Your same code needs to solve every level
 
 // You may update render() to make the levels easier to understand
 function render(tokens) {
-    return JSON.stringify(tokens);
+  return JSON.stringify(tokens);
 }
 `;
 
