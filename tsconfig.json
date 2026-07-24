@@ -26,5 +26,10 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  "include": [
+    "eslint.config.js",
+    "src",
+    "spoilers",
+  ]
 }

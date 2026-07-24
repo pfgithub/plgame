@@ -20,4 +20,4 @@ plgame is a browser-based programming puzzle about learning an unknown language 
 - `src/levels.json`: Gitignored generated numeric level data, consumed by the game at runtime.
 - `spoilers/spoilers.ts`: Token vocabulary, tokenizer, ordered puzzle corpus, reference stack-language interpreter, and generator for `src/levels.json`.
 
-If new code files are added, or significant changes are made to existing files, add/update the summary.
+If new code files are added, or significant changes are made to existing files, add/update the summary. Only update summaries if the new feature is notable enough that it would come up in a short summary of the file.

@@ -5,18 +5,22 @@ import tseslint from "typescript-eslint";
 import js from "@eslint/js";
 
 export default defineConfig([
-    stylistic.configs.customize({
-        indent: 4,
-        semi: true,
-        jsx: true,
-        quotes: "double",
-        braceStyle: "1tbs",
-        blockSpacing: false,
-    }),
-    js.configs.recommended,
-    tseslint.configs.recommended,
-    // tseslint.configs.recommendedTypeChecked,
     {
+        files: ["eslint.config.js", "src/**/*.{,m,c}{j,t}s{,x}", "spoilers/**/*.{,m,c}{j,t}s{,x}"],
+        extends: [
+            stylistic.configs.customize({
+                indent: 4,
+                semi: true,
+                jsx: true,
+                quotes: "double",
+                braceStyle: "1tbs",
+                blockSpacing: false,
+            }),
+            js.configs.recommended,
+            tseslint.configs.recommended,
+            // tseslint.configs.recommendedTypeChecked,
+            tseslint.configs.base,
+        ],
         plugins: {
             "@stylistic": stylistic,
         },
@@ -55,8 +59,6 @@ export default defineConfig([
                 }],
             }],
         },
-        extends: [tseslint.configs.base],
-        files: ["eslint.config.js", "src/**/*.{,m,c}{j,t}s{,x}", "spoilers/**/*.{,m,c}{j,t}s{,x}"],
         languageOptions: {
             parserOptions: {
                 projectService: true,
